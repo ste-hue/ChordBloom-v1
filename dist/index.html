@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0a0b0f"><title>ChordBloom</title><link rel="stylesheet" href="./styles.css"></head>
+<body>
+<div class="app-shell">
+<header class="topbar"><div><div class="brand">ChordBloom</div><div class="tagline">Harmony → movement → MIDI</div></div><div class="seedbox"><span>SEED</span><input id="seed" type="number" value="182746"><button id="newSeed" class="ghost">New seed</button></div></header>
+<main>
+<section class="hero-panel panel">
+  <div class="controls basic-grid">
+    <label>KEY<select id="key"></select></label>
+    <label>SCALE / MODE<select id="scale"></select></label>
+    <label>STYLE<select id="style"></select></label>
+    <label>MOOD<select id="mood"></select></label>
+    <label>CHORDS<select id="length"></select></label>
+    <label>BPM<input id="bpm" type="number" min="40" max="240" value="126"></label>
+    <label>GENERATION<select id="generationMode"></select></label>
+    <label>CADENCE<select id="cadence"></select></label>
+  </div>
+  <div class="primary-actions"><button id="generate" class="primary">GENERATE</button><button id="moreLike">MORE LIKE THIS</button><button id="play">▶ PLAY</button><button id="stop">■ STOP</button><button id="download">DOWNLOAD MIDI</button></div>
+</section>
+
+<section class="layout">
+  <aside class="panel sidebar">
+    <details open><summary>HARMONY</summary>
+      <label class="range">Complexity <output id="complexityOut">58</output><input id="complexity" type="range" min="0" max="100" value="58"></label>
+      <label class="range">Tension <output id="tensionOut">45</output><input id="tension" type="range" min="0" max="100" value="45"></label>
+      <label class="range">Diatonic ↔ Adventurous <output id="adventurousOut">32</output><input id="adventurous" type="range" min="0" max="100" value="32"></label>
+      <label>Tension curve<select id="tensionCurve"></select></label>
+      <label class="toggle"><input id="loopFriendly" type="checkbox" checked> Loop friendly</label>
+    </details>
+    <details><summary>VOICING</summary>
+      <label class="range">Spread <output id="spreadOut">62</output><input id="spread" type="range" min="0" max="100" value="62"></label>
+      <label class="range">Voice leading <output id="voiceLeadingOut">86</output><input id="voiceLeading" type="range" min="0" max="100" value="86"></label>
+      <label>Top voice<select id="topVoice"></select></label>
+      <label>Bass movement<select id="bassMovement"></select></label>
+    </details>
+    <details><summary>RHYTHM</summary>
+      <label>Grid<select id="grid"></select></label><label>Pattern<select id="rhythmPattern"></select></label><label>Articulation<select id="articulation"></select></label>
+      <label class="range">Swing <output id="swingOut">50</output><input id="swing" type="range" min="50" max="70" value="50"></label>
+      <label>Harmonic rhythm<select id="harmonicRhythm"></select></label>
+      <div class="two"><label>Min length<input id="minNoteLength" type="number" min="1" max="32" value="1"></label><label>Max length<input id="maxNoteLength" type="number" min="1" max="64" value="4"></label></div>
+    </details>
+    <details><summary>ARP / PERFORMANCE</summary>
+      <label>Arp pattern<select id="arpPattern"></select></label><label>Arp octaves<select id="arpOctaves"></select></label>
+      <label>Strum<select id="strumMode"></select></label><label class="range">Strum width <output id="strumWidthOut">25</output><input id="strumWidth" type="range" min="0" max="100" value="25"></label>
+      <label>Velocity<select id="velocityMode"></select></label><div class="two"><label>Min vel<input id="minVelocity" type="number" min="1" max="127" value="78"></label><label>Max vel<input id="maxVelocity" type="number" min="1" max="127" value="112"></label></div>
+    </details>
+    <details><summary>MIDI & STATE</summary>
+      <label class="toggle"><input id="multiTrack" type="checkbox"> Multi-track MIDI</label><label class="toggle"><input id="showTheory" type="checkbox" checked> Show theory</label>
+      <div class="stack"><button id="save">SAVE PROGRESSION</button><button id="undo">UNDO</button><button id="redo">REDO</button><button id="reset">RESET</button></div>
+    </details>
+  </aside>
+
+  <section class="workspace">
+    <div class="section-head"><div><span class="eyebrow">PROGRESSION</span><h1 id="progressionTitle">Generate a progression</h1></div><div id="status" class="status">Ready</div></div>
+    <div id="chords" class="chord-strip"></div>
+    <section class="panel roll-panel"><div class="panel-title">PIANO ROLL <span id="eventCount"></span></div><canvas id="pianoRoll" width="1200" height="260"></canvas></section>
+    <section id="theoryPanel" class="panel theory-panel"><div class="panel-title">WHY THIS PROGRESSION WORKS</div><p id="why">Generate a progression to inspect its harmonic logic.</p></section>
+    <section class="panel transformations"><div class="panel-title">MAKE IT</div><div id="makeIt" class="chip-row"></div></section>
+    <section class="panel favorites"><div class="panel-title">SAVED PROGRESSIONS</div><div id="favorites"></div></section>
+  </section>
+</section>
+</main>
+</div>
+<div id="toast" class="toast"></div>
+<script type="module" src="./app.js"></script>
+</body></html>
