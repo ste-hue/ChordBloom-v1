@@ -21,6 +21,9 @@
 .help-tooltip{position:fixed;z-index:99999;pointer-events:none;max-width:310px;padding:9px 11px;border-radius:10px;background:#080b10;border:1px solid #3b4556;color:#e9edf5;font-size:11px;line-height:1.45;box-shadow:0 12px 35px rgba(0,0,0,.42);opacity:0;transform:translateY(4px);transition:opacity .09s ease,transform .09s ease}.help-tooltip.visible{opacity:1;transform:translateY(0)}
 [data-help]{cursor:help}.simple-view .expert-only{display:none!important}.simple-view .simple-hide{display:none!important}.simple-view .tabs .expert-tab{display:none!important}.simple-view #theoryPanel,.simple-view .favorites-panel{display:none}.simple-view .macro-grid{grid-template-columns:repeat(4,1fr)}.simple-view .primary-panel{border-color:#3c4858}.simple-view .subtitle:after{content:' · Simple View keeps the strongest musical guard rails on.';color:var(--accent)}.expert-view .expert-grid{display:grid}.mpe-panel-active{box-shadow:inset 0 0 0 1px rgba(143,208,255,.10)}
 @media(max-width:900px){.simple-view .macro-grid{grid-template-columns:repeat(2,1fr)}.view-mode-bar{align-items:flex-start;flex-direction:column}.view-switch{width:100%}.view-switch button{flex:1}}
+.credits-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.credits-row input{flex:1;min-width:180px}
+.credits-panel.attention{outline:2px solid var(--accent, #b5ff7a)}
 
 </style>
 </head>
@@ -225,6 +228,16 @@
     <div class="section-heading compact"><h3>Saved progressions</h3></div>
     <div id="favorites"></div>
   </section>
+
+  <section class="panel credits-panel" id="creditsPanel">
+    <div class="section-heading compact"><h3>Export credits</h3><span id="creditBalance" class="source">—</span></div>
+    <div class="credits-row">
+      <input id="licenseKeyInput" type="password" placeholder="Paste your license key" autocomplete="off" data-help="Your Lemon Squeezy license key is your credit wallet. It is stored only in this browser.">
+      <button id="activateKeyBtn" class="tiny" data-help="Check the key and load your credit balance.">ACTIVATE</button>
+      <a id="buyCreditsBtn" class="tiny accent" target="_blank" rel="noopener" data-help="Buy an export credit pack. €10 = 100 MIDI/MPE exports.">BUY CREDITS</a>
+    </div>
+    <div id="creditsStatus" class="source"></div>
+  </section>
 </div>
 <div id="helpTooltip" class="help-tooltip" role="tooltip"></div>
 <script>
@@ -368,6 +381,10 @@
     mpeEnabled:false, mpePower:'35', mpeMode:'NATURAL', mpeBendRange:'48', mpeGlide:'38', mpeVibrato:'16', mpeTimbre:'56', mpePressure:'48', mpeCommonToneHold:true, mpeTheoryAware:true,
     exportMode:'Pattern (single track)', seed:'1979', showTheory:true, viewMode:'simple'
   };
+
+  // Credits: dark-launched. Empty CREDITS_API = credits disabled, export stays free.
+  const CREDITS_API='';
+  const LS_CHECKOUT_URL='';
 
   const state = {
     progression: [], locks: Array(16).fill(false), history: [], future: [], events: [], harmonyTimeline: [],
@@ -1525,6 +1542,49 @@
     return bytes;
   }
 
+  const creditState={key:storageGet('chordbloom.licenseKey',''),walletId:storageGet('chordbloom.walletId',''),balance:null,pendingIdem:null};
+  function mintIdempotencyKey(){ return (globalThis.crypto&&crypto.randomUUID)?crypto.randomUUID():String(Date.now())+'-'+Math.floor(Math.random()*1e9); }
+  async function requestSpend(fetchImpl,apiBase,licenseKey,idemKey){
+    try{
+      const r=await fetchImpl(apiBase+'/wallet/spend',{method:'POST',headers:{'Content-Type':'application/json','X-License-Key':licenseKey},body:JSON.stringify({reason:'midi_export',idempotency_key:idemKey})});
+      const body=await r.json().catch(()=>({}));
+      return {ok:r.ok,status:r.status,balance:body.balance,walletId:body.wallet_id};
+    }catch{ return {ok:false,status:0}; }
+  }
+  function renderCredits(msg=''){
+    const bal=$('creditBalance'); if(bal) bal.textContent=!CREDITS_API?'—':(creditState.balance==null?'—':`${creditState.balance} credits`);
+    const buy=$('buyCreditsBtn');
+    if(buy){ const custom=creditState.walletId?`?checkout[custom][wallet_id]=${encodeURIComponent(creditState.walletId)}`:''; buy.href=LS_CHECKOUT_URL?LS_CHECKOUT_URL+custom:'#'; buy.style.display=LS_CHECKOUT_URL?'':'none'; }
+    const st=$('creditsStatus'); if(st) st.textContent=msg||(!CREDITS_API?'Credits not enabled yet.':'');
+  }
+  function highlightCreditsPanel(){ const p=$('creditsPanel'); if(!p)return; p.classList.add('attention'); p.scrollIntoView({behavior:'smooth',block:'center'}); setTimeout(()=>p.classList.remove('attention'),2500); }
+  function rememberWallet(balance,walletId){ if(typeof balance==='number')creditState.balance=balance; if(walletId){creditState.walletId=walletId;storageSet('chordbloom.walletId',walletId);} renderCredits(); }
+  async function activateKey(){
+    if(!CREDITS_API){renderCredits();return;}
+    const key=($('licenseKeyInput')?.value||'').trim(); if(!key){renderCredits('Paste the license key from your purchase email.');return;}
+    try{
+      const r=await fetch(CREDITS_API+'/wallet/activate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({license_key:key})});
+      const body=await r.json().catch(()=>({}));
+      if(!r.ok){renderCredits(r.status===401?'That license key is not valid.':'Could not activate the key. Try again.');return;}
+      creditState.key=key;storageSet('chordbloom.licenseKey',key);rememberWallet(body.balance,body.wallet_id);renderCredits('Key activated.');
+    }catch{renderCredits('Credit service unreachable — try again with a connection.');}
+  }
+  async function refreshBalance(){
+    if(!CREDITS_API||!creditState.key)return;
+    try{ const r=await fetch(CREDITS_API+'/wallet',{headers:{'X-License-Key':creditState.key}}); if(r.ok){const b=await r.json();rememberWallet(b.balance,b.wallet_id);} }catch{}
+  }
+  async function exportWithCredit(){
+    if(!CREDITS_API){ await saveMidiFile(); return; }
+    if(!creditState.key){ setStatus('Export costs 1 credit — paste your license key or buy credits below.'); highlightCreditsPanel(); return; }
+    if(!creditState.pendingIdem) creditState.pendingIdem=mintIdempotencyKey();
+    const res=await requestSpend((...a)=>fetch(...a),CREDITS_API,creditState.key,creditState.pendingIdem);
+    if(res.status===402){ setStatus('No credits left — buy a pack to export.'); highlightCreditsPanel(); rememberWallet(0,res.walletId); return; }
+    if(!res.ok){ setStatus('Credit service unreachable — export needs a connection.'); return; }
+    rememberWallet(res.balance,res.walletId);
+    const saved=await saveMidiFile();
+    if(saved===true) creditState.pendingIdem=null; // cancelled/failed saves keep the key: the replay is free
+  }
+
   async function saveMidiFile(){
     try{
       const bytes=validMidiPayload();
@@ -1643,7 +1703,7 @@
   }
 
 
-  const CONTROL_HELP = {"undoBtn": "Undo the last progression or control-changing action.", "redoBtn": "Redo the last undone action.", "saveFavBtn": "Save the current progression and settings in this browser.", "resetBtn": "Restore ChordBloom’s musical default settings.", "simpleViewBtn": "Simple View hides specialist controls and keeps the workflow focused on musical results.", "expertViewBtn": "Expert View exposes detailed harmony, voicing, rhythmic, MPE and MIDI controls.", "key": "Choose the tonal center. Chord spelling and harmonic functions adapt to this key.", "scale": "Choose the scale or mode that defines the diatonic pitch collection.", "style": "Changes the probability map for progressions, extensions, register and rhythmic behavior.", "mood": "Biases tension, color and harmonic direction without changing the selected style.", "count": "Number of harmonic events in the generated progression.", "bpm": "Tempo used for playback and written into the MIDI file.", "generateBtn": "Generate a new seeded progression using the current musical constraints.", "similarBtn": "Create a close relative of the current progression rather than starting from scratch.", "playBtn": "Preview the generated MIDI pattern in the browser. MPE expression is simulated when enabled.", "stopBtn": "Stop browser playback.", "downloadBtn": "Export the current result as a Standard MIDI File. With MPE enabled, the file contains an MPE zone and per-note expression.", "newSeedBtn": "Choose a new seed. Same seed plus same settings reproduces the same result.", "seed": "Deterministic random seed used by the stochastic music engine.", "complexity": "Controls harmonic density: triads at low values, then 7ths, 9ths and richer extensions.", "tension": "Controls how much harmonic instability is allowed before resolution.", "adventure": "Controls chromatic freedom. Low values strongly favor diatonic harmony; high values admit contextual substitutions.", "spread": "Controls how wide the chord voicings are across octaves.", "voiceLeading": "How strongly ChordBloom minimizes voice movement and preserves common tones.", "mpeEnabled": "Enable MIDI Polyphonic Expression. Each note can receive independent pitch, timbre and pressure.", "mpePower": "Master intensity for all MPE expression. At low values it is subtle; at high values it becomes fluid and obvious.", "generationMode": "Choose sustained chords, rhythmic chords, arpeggios, broken chords, strums or pulses.", "cadence": "Controls how strongly the progression resolves at its ending.", "tensionCurve": "Shapes harmonic tension over the complete progression.", "loopFriendly": "Scores the final chord back into the first chord so electronic loops repeat naturally.", "theoryPalette": "Chooses a palette of harmonic techniques appropriate to a compositional language.", "pedal": "Holds a tonic or dominant pedal tone under changing harmony.", "bassMovement": "Biases bass inversions and root motion.", "topVoice": "Shapes the melodic behavior of the highest chord voice.", "voicingMode": "Select close/open/drop/quartal voicing behavior.", "register": "Move the generated voicing range lower or higher.", "avoidCrossing": "Penalize chord voicings in which voices cross each other unnaturally.", "counterpointAware": "Encourage independent voice motion rather than every note moving in parallel.", "grid": "Base rhythmic subdivision used for note starts and quantized lengths.", "articulation": "Controls gate behavior for rhythmic notes and arpeggios.", "chordPerformance": "Natural Play uses theory-aware unequal voice releases; Full Length holds every voice to the chord boundary.", "harmonicRhythm": "Controls whether chord lengths stay fixed or vary over the progression.", "rhythmPattern": "Choose a grid-based trigger pattern for rhythmic modes.", "swing": "Delays alternating subdivisions to create swing while preserving a grid-derived structure.", "minLen": "Minimum note duration measured in grid steps.", "maxLen": "Maximum note duration measured in grid steps.", "humanize": "Adds small velocity variation. Timing remains deliberate rather than random by default.", "chordBeats": "Length of each chord slot in beats when harmonic rhythm is fixed.", "arpPattern": "Order in which chord notes are visited by the arpeggiator.", "arpOctaves": "Number of octave layers available to the arpeggio.", "strumDirection": "Direction used when Generation is STRUM.", "strumWidth": "Time spread between the first and last note of a strummed chord.", "crazyArp": "Enable theory-aware asymmetric electronic arpeggios with controlled tensions and resolutions.", "crazyArpAmount": "How far Crazy Arp can move away from a conventional chord-tone pattern.", "crazyCycle": "Length of the pitch-order cycle. Odd cycles create polymetric evolution against 4/4.", "crazyContinuous": "Keep the odd pitch cycle running through chord boundaries instead of resetting.", "mpeMode": "MPE character. Natural is restrained; Expressive adds stronger tendency-tone motion; Liquid and Wide allow larger gestures.", "mpeBendRange": "Pitch-bend sensitivity written to MPE member channels. 48 semitones is the standard MPE default and gives fine resolution for small bends.", "mpeGlide": "How much tendency tones may lean toward their next harmonic target near note release.", "mpeVibrato": "Amount of per-note pitch movement on sustained upper/inner voices.", "mpeTimbre": "Depth of per-note CC74 brightness movement.", "mpePressure": "Depth of per-note Channel Pressure movement.", "mpeCommonToneHold": "Keep notes shared by adjacent chords especially stable instead of decorating them unnecessarily.", "mpeTheoryAware": "Tie MPE gestures to harmonic role and resolution instead of applying generic modulation.", "showTheory": "Show or hide the detailed explanation of why the generated harmony works.", "velocityMode": "Controls how MIDI note velocities are distributed.", "minVelocity": "Lowest velocity used by dynamic velocity modes.", "maxVelocity": "Highest velocity used by dynamic velocity modes.", "exportMode": "Standard export can split Pattern, Bass and Top Voice. MPE export uses one MPE pattern track to keep member channels unambiguous.", "copyTheoryBtn": "Copy the theory explanation to the clipboard."};
+  const CONTROL_HELP = {"undoBtn": "Undo the last progression or control-changing action.", "redoBtn": "Redo the last undone action.", "saveFavBtn": "Save the current progression and settings in this browser.", "resetBtn": "Restore ChordBloom’s musical default settings.", "simpleViewBtn": "Simple View hides specialist controls and keeps the workflow focused on musical results.", "expertViewBtn": "Expert View exposes detailed harmony, voicing, rhythmic, MPE and MIDI controls.", "key": "Choose the tonal center. Chord spelling and harmonic functions adapt to this key.", "scale": "Choose the scale or mode that defines the diatonic pitch collection.", "style": "Changes the probability map for progressions, extensions, register and rhythmic behavior.", "mood": "Biases tension, color and harmonic direction without changing the selected style.", "count": "Number of harmonic events in the generated progression.", "bpm": "Tempo used for playback and written into the MIDI file.", "generateBtn": "Generate a new seeded progression using the current musical constraints.", "similarBtn": "Create a close relative of the current progression rather than starting from scratch.", "playBtn": "Preview the generated MIDI pattern in the browser. MPE expression is simulated when enabled.", "stopBtn": "Stop browser playback.", "downloadBtn": "Export the current result as a Standard MIDI File. With MPE enabled, the file contains an MPE zone and per-note expression.", "newSeedBtn": "Choose a new seed. Same seed plus same settings reproduces the same result.", "seed": "Deterministic random seed used by the stochastic music engine.", "complexity": "Controls harmonic density: triads at low values, then 7ths, 9ths and richer extensions.", "tension": "Controls how much harmonic instability is allowed before resolution.", "adventure": "Controls chromatic freedom. Low values strongly favor diatonic harmony; high values admit contextual substitutions.", "spread": "Controls how wide the chord voicings are across octaves.", "voiceLeading": "How strongly ChordBloom minimizes voice movement and preserves common tones.", "mpeEnabled": "Enable MIDI Polyphonic Expression. Each note can receive independent pitch, timbre and pressure.", "mpePower": "Master intensity for all MPE expression. At low values it is subtle; at high values it becomes fluid and obvious.", "generationMode": "Choose sustained chords, rhythmic chords, arpeggios, broken chords, strums or pulses.", "cadence": "Controls how strongly the progression resolves at its ending.", "tensionCurve": "Shapes harmonic tension over the complete progression.", "loopFriendly": "Scores the final chord back into the first chord so electronic loops repeat naturally.", "theoryPalette": "Chooses a palette of harmonic techniques appropriate to a compositional language.", "pedal": "Holds a tonic or dominant pedal tone under changing harmony.", "bassMovement": "Biases bass inversions and root motion.", "topVoice": "Shapes the melodic behavior of the highest chord voice.", "voicingMode": "Select close/open/drop/quartal voicing behavior.", "register": "Move the generated voicing range lower or higher.", "avoidCrossing": "Penalize chord voicings in which voices cross each other unnaturally.", "counterpointAware": "Encourage independent voice motion rather than every note moving in parallel.", "grid": "Base rhythmic subdivision used for note starts and quantized lengths.", "articulation": "Controls gate behavior for rhythmic notes and arpeggios.", "chordPerformance": "Natural Play uses theory-aware unequal voice releases; Full Length holds every voice to the chord boundary.", "harmonicRhythm": "Controls whether chord lengths stay fixed or vary over the progression.", "rhythmPattern": "Choose a grid-based trigger pattern for rhythmic modes.", "swing": "Delays alternating subdivisions to create swing while preserving a grid-derived structure.", "minLen": "Minimum note duration measured in grid steps.", "maxLen": "Maximum note duration measured in grid steps.", "humanize": "Adds small velocity variation. Timing remains deliberate rather than random by default.", "chordBeats": "Length of each chord slot in beats when harmonic rhythm is fixed.", "arpPattern": "Order in which chord notes are visited by the arpeggiator.", "arpOctaves": "Number of octave layers available to the arpeggio.", "strumDirection": "Direction used when Generation is STRUM.", "strumWidth": "Time spread between the first and last note of a strummed chord.", "crazyArp": "Enable theory-aware asymmetric electronic arpeggios with controlled tensions and resolutions.", "crazyArpAmount": "How far Crazy Arp can move away from a conventional chord-tone pattern.", "crazyCycle": "Length of the pitch-order cycle. Odd cycles create polymetric evolution against 4/4.", "crazyContinuous": "Keep the odd pitch cycle running through chord boundaries instead of resetting.", "mpeMode": "MPE character. Natural is restrained; Expressive adds stronger tendency-tone motion; Liquid and Wide allow larger gestures.", "mpeBendRange": "Pitch-bend sensitivity written to MPE member channels. 48 semitones is the standard MPE default and gives fine resolution for small bends.", "mpeGlide": "How much tendency tones may lean toward their next harmonic target near note release.", "mpeVibrato": "Amount of per-note pitch movement on sustained upper/inner voices.", "mpeTimbre": "Depth of per-note CC74 brightness movement.", "mpePressure": "Depth of per-note Channel Pressure movement.", "mpeCommonToneHold": "Keep notes shared by adjacent chords especially stable instead of decorating them unnecessarily.", "mpeTheoryAware": "Tie MPE gestures to harmonic role and resolution instead of applying generic modulation.", "showTheory": "Show or hide the detailed explanation of why the generated harmony works.", "velocityMode": "Controls how MIDI note velocities are distributed.", "minVelocity": "Lowest velocity used by dynamic velocity modes.", "maxVelocity": "Highest velocity used by dynamic velocity modes.", "exportMode": "Standard export can split Pattern, Bass and Top Voice. MPE export uses one MPE pattern track to keep member channels unambiguous.", "copyTheoryBtn": "Copy the theory explanation to the clipboard.", "licenseKeyInput": "Your license key from the purchase email. It is your credit wallet and is stored only in this browser.", "buyCreditsBtn": "Buy 100 MIDI/MPE export credits for €10 via Lemon Squeezy."};
   function setupHelp(){
     for(const [id,msg] of Object.entries(CONTROL_HELP)){ const el=$(id); if(!el)continue; const host=(el.matches('input,select')?el.closest('label'):el)||el; host.dataset.help=msg; host.title=msg; }
     document.querySelectorAll('[data-transform]').forEach(b=>{b.dataset.help=`Adjust musical parameters toward “${b.textContent.trim()}”, then generate a related result.`;b.title=b.dataset.help;});
@@ -1665,7 +1725,7 @@
   function bindUI(){
     $('simpleViewBtn').onclick=()=>setViewMode('simple');$('expertViewBtn').onclick=()=>setViewMode('expert');
     document.querySelectorAll('.tab').forEach(btn=>btn.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.tab-panel').forEach(x=>x.classList.remove('active'));btn.classList.add('active');$(btn.dataset.tab).classList.add('active');});
-    $('generateBtn').onclick=()=>generate('new');$('similarBtn').onclick=()=>{pushHistory();generate('similar');};$('newSeedBtn').onclick=()=>{pushHistory();$('seed').value=Math.floor(Math.random()*999999998)+1;generate('apply');};$('playBtn').onclick=play;$('stopBtn').onclick=()=>{stopAudio();setStatus('Stopped.');};const dl=$('downloadBtn');dl.addEventListener('click',()=>saveMidiFile());
+    $('generateBtn').onclick=()=>generate('new');$('similarBtn').onclick=()=>{pushHistory();generate('similar');};$('newSeedBtn').onclick=()=>{pushHistory();$('seed').value=Math.floor(Math.random()*999999998)+1;generate('apply');};$('playBtn').onclick=play;$('stopBtn').onclick=()=>{stopAudio();setStatus('Stopped.');};const dl=$('downloadBtn');dl.addEventListener('click',()=>{exportWithCredit();});
     $('undoBtn').onclick=()=>{if(!state.history.length)return;state.future.push(snapshot());restoreSnapshot(state.history.pop());};$('redoBtn').onclick=()=>{if(!state.future.length)return;state.history.push(snapshot());restoreSnapshot(state.future.pop());};$('saveFavBtn').onclick=saveFavorite;
     $('resetBtn').onclick=()=>{pushHistory();Object.entries(DEFAULTS).forEach(([id,v])=>{const el=$(id);if(!el)return;if(el.type==='checkbox')el.checked=!!v;else el.value=v;});state.locks.fill(false);generate('apply');};
     $('copyTheoryBtn').onclick=async()=>{try{await navigator.clipboard.writeText($('theoryExplanation').innerText);setStatus('Theory explanation copied.');}catch{setStatus('Clipboard unavailable.');}};
@@ -1677,6 +1737,7 @@
     ['voicingMode','register','pedal','bassMovement','topVoice','spread','voiceLeading','avoidCrossing','counterpointAware'].forEach(id=>$(id)?.addEventListener('change',()=>{ if(!state.progression.length)return; pushHistory(); revoiceFrom(0); refreshAll(true); setStatus('Voicing updated.'); }));
     ['key','scale','style','mood','count','cadence','tensionCurve','loopFriendly','theoryPalette'].forEach(id=>$(id)?.addEventListener('change',()=>setStatus('Harmony settings changed — press GENERATE to apply.')));
     window.addEventListener('resize',()=>drawPianoRoll());
+    $('activateKeyBtn')?.addEventListener('click',()=>{activateKey();});
   }
 
   function runSelfTests(){
@@ -1706,11 +1767,11 @@
     window.__CHORDBLOOM_TESTS__=results; console.table(results); return results;
   }
   function init(){
-    initControls();bindUI();setupHelp();let vm='simple';try{vm=localStorage.getItem('chordbloomView')||DEFAULTS.viewMode||'simple';}catch{}setViewMode(vm,false);generate('apply');refreshAll(true);if(new URLSearchParams(location.search).has('selftest'))setTimeout(runSelfTests,50);
+    initControls();bindUI();setupHelp();let vm='simple';try{vm=localStorage.getItem('chordbloomView')||DEFAULTS.viewMode||'simple';}catch{}setViewMode(vm,false);generate('apply');refreshAll(true);renderCredits();refreshBalance();if(new URLSearchParams(location.search).has('selftest'))setTimeout(runSelfTests,50);
     window.ChordBloom={generate:()=>generate('new'),moreLikeThis:()=>generate('similar'),downloadMidi,saveMidiFile,prepareMidiDownload,midiBytes,generatePatternEvents,getState:()=>deep(state),settings,runSelfTests};
   }
 
-  globalThis.__ChordBloomCore={PPQ,SCALES,STYLES,MOODS,KEY_PC,baseDegrees,chooseChord,candidateScore,makeCandidates,chordSymbol,diatonicChord,borrowedChord,secondaryDominant,secondaryTwo,tritoneSub,backdoor,diminishedApproach,neapolitan,augmentedSixth,chromaticMediant,quartalChord,upperStructure,voiceChord,gridTicks,harmonicDurations,rhythmMask,arpOrder,crazyArpPlan,crazyCycleLength,safeTensionPcs,closestMidiForPc,gateSteps,naturalChordGate,nearestVoiceTarget,mergeNaturalCommonTones,makeMpeCurve,applyMpeExpression,allocateMpeChannels,pitchBend14,mpeMidiTrackWithSettings,midiBytesFrom,mulberry32,hashSeed,degreeRoot,noteName,activateAudioContext};
+  globalThis.__ChordBloomCore={PPQ,SCALES,STYLES,MOODS,KEY_PC,baseDegrees,chooseChord,candidateScore,makeCandidates,chordSymbol,diatonicChord,borrowedChord,secondaryDominant,secondaryTwo,tritoneSub,backdoor,diminishedApproach,neapolitan,augmentedSixth,chromaticMediant,quartalChord,upperStructure,voiceChord,gridTicks,harmonicDurations,rhythmMask,arpOrder,crazyArpPlan,crazyCycleLength,safeTensionPcs,closestMidiForPc,gateSteps,naturalChordGate,nearestVoiceTarget,mergeNaturalCommonTones,makeMpeCurve,applyMpeExpression,allocateMpeChannels,pitchBend14,mpeMidiTrackWithSettings,midiBytesFrom,mulberry32,hashSeed,degreeRoot,noteName,activateAudioContext,requestSpend,mintIdempotencyKey};
 
   if(typeof document!=='undefined'){ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init(); }
 })();
