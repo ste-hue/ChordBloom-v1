@@ -1401,9 +1401,23 @@
     renderProgression(); if(rebuildEvents) generatePatternEvents(); drawPianoRoll(); $('theoryExplanation').innerHTML=settings().showTheory?theoryText():'Theory display is hidden.'; renderFavorites(); updateOutputs(); prepareMidiDownload(false);
   }
 
-  function auditionChord(ch) {
-    stopAudio(); const AudioCtx=window.AudioContext||window.webkitAudioContext; if(!AudioCtx){setStatus('WebAudio unavailable. MIDI export still works.');return;} const ctx=new AudioCtx(); state.audio=ctx; const master=ctx.createGain(); master.gain.value=.14; master.connect(ctx.destination); const now=ctx.currentTime+.03;
-    ch.notes.forEach(n=>scheduleTone(ctx,master,n,now,1.0,.8)); setTimeout(()=>{if(state.audio===ctx){ctx.close();state.audio=null;}},1300);
+  let sharedAudioCtx=null;
+  async function activateAudioContext(context){
+    if(context.state==='closed')throw new Error('Audio output is closed. Reload the page to play sound again.');
+    if(context.state==='suspended'&&typeof context.resume==='function')await context.resume();
+    return context;
+  }
+  function audioContext(){
+    const AudioCtx=window.AudioContext||window.webkitAudioContext; if(!AudioCtx)return null;
+    if(!sharedAudioCtx||sharedAudioCtx.state==='closed')sharedAudioCtx=new AudioCtx();
+    return sharedAudioCtx;
+  }
+
+  async function auditionChord(ch) {
+    stopAudio(); const ctx=audioContext(); if(!ctx){setStatus('WebAudio unavailable. MIDI export still works.');return;}
+    try{await activateAudioContext(ctx);}catch(err){setStatus(String(err.message||err));return;}
+    const master=ctx.createGain(); master.gain.value=.14; master.connect(ctx.destination); state.audio=master; const now=ctx.currentTime+.03;
+    ch.notes.forEach(n=>scheduleTone(ctx,master,n,now,1.0,.8)); setTimeout(()=>{if(state.audio===master)stopAudio();},1300);
   }
 
   function scheduleTone(ctx,master,n,start,dur,vel=.7) {
@@ -1424,12 +1438,16 @@
   }
 
 
-  function play() {
-    stopAudio(); if(!state.events.length)generatePatternEvents(); const AudioCtx=window.AudioContext||window.webkitAudioContext; if(!AudioCtx){setStatus('WebAudio unavailable. MIDI export still works.');return;} const ctx=new AudioCtx(); state.audio=ctx; const master=ctx.createGain();master.gain.value=.18;master.connect(ctx.destination); const secPerTick=60/(settings().bpm*PPQ), now=ctx.currentTime+.05; const audible=state.events.filter(e=>e.track==='Pattern');
+  async function play() {
+    stopAudio(); if(!state.events.length)generatePatternEvents();
+    const ctx=audioContext(); if(!ctx){setStatus('WebAudio unavailable. MIDI export still works.');return;}
+    try{await activateAudioContext(ctx);}catch(err){setStatus(String(err.message||err));return;}
+    const master=ctx.createGain();master.gain.value=.18;master.connect(ctx.destination);state.audio=master;
+    const secPerTick=60/(settings().bpm*PPQ), now=ctx.currentTime+.05; const audible=state.events.filter(e=>e.track==='Pattern');
     for(const e of audible) scheduleExpressiveTone(ctx,master,e,now+e.start*secPerTick,Math.max(.025,(e.end-e.start)*secPerTick),e.velocity/127,settings(),secPerTick);
-    const end=Math.max(...audible.map(e=>e.end),PPQ)*secPerTick+1; setStatus(`Playing ${settings().generationMode} at ${settings().bpm} BPM.`); setTimeout(()=>{if(state.audio===ctx){ctx.close();state.audio=null;setStatus('Ready.');}},end*1000);
+    const end=Math.max(...audible.map(e=>e.end),PPQ)*secPerTick+1; setStatus(`Playing ${settings().generationMode} at ${settings().bpm} BPM.`); setTimeout(()=>{if(state.audio===master){stopAudio();setStatus('Ready.');}},end*1000);
   }
-  function stopAudio(){ if(state.audio){try{state.audio.close();}catch{} state.audio=null;} }
+  function stopAudio(){ if(state.audio){try{state.audio.disconnect();}catch{} state.audio=null;} }
 
   function vlq(v){ let buffer=v&0x7F, out=[]; while((v>>=7)){buffer<<=8;buffer|=((v&0x7F)|0x80);} while(true){out.push(buffer&255);if(buffer&0x80)buffer>>=8;else break;} return out; }
   function pushStr(a,s){for(let i=0;i<s.length;i++)a.push(s.charCodeAt(i));}
@@ -1715,7 +1733,7 @@
     window.ChordBloom={generate:()=>generate('new'),moreLikeThis:()=>generate('similar'),downloadMidi,saveMidiFile,prepareMidiDownload,midiBytes,generatePatternEvents,getState:()=>deep(state),settings,runSelfTests};
   }
 
-  globalThis.__ChordBloomCore={PPQ,SCALES,STYLES,MOODS,KEY_PC,baseDegrees,chooseChord,candidateScore,makeCandidates,chordSymbol,diatonicChord,borrowedChord,secondaryDominant,secondaryTwo,tritoneSub,backdoor,diminishedApproach,neapolitan,augmentedSixth,chromaticMediant,quartalChord,upperStructure,voiceChord,gridTicks,harmonicDurations,rhythmMask,arpOrder,crazyArpPlan,crazyCycleLength,safeTensionPcs,closestMidiForPc,gateSteps,naturalChordGate,nearestVoiceTarget,mergeNaturalCommonTones,makeMpeCurve,applyMpeExpression,allocateMpeChannels,pitchBend14,mpeMidiTrackWithSettings,midiBytesFrom,mulberry32,hashSeed,degreeRoot,noteName};
+  globalThis.__ChordBloomCore={PPQ,SCALES,STYLES,MOODS,KEY_PC,baseDegrees,chooseChord,candidateScore,makeCandidates,chordSymbol,diatonicChord,borrowedChord,secondaryDominant,secondaryTwo,tritoneSub,backdoor,diminishedApproach,neapolitan,augmentedSixth,chromaticMediant,quartalChord,upperStructure,voiceChord,gridTicks,harmonicDurations,rhythmMask,arpOrder,crazyArpPlan,crazyCycleLength,safeTensionPcs,closestMidiForPc,gateSteps,naturalChordGate,nearestVoiceTarget,mergeNaturalCommonTones,makeMpeCurve,applyMpeExpression,allocateMpeChannels,pitchBend14,mpeMidiTrackWithSettings,midiBytesFrom,mulberry32,hashSeed,degreeRoot,noteName,activateAudioContext};
 
   if(typeof document!=='undefined'){ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init(); }
 })();
