@@ -109,6 +109,15 @@ test('ensureAudioUnlocked: skips silent buffer when reactivation not needed',asy
   assert.equal(ctx.unlockBufferPlayed,false);
 });
 
+test('ensureAudioUnlocked: resumes suspended context but skips buffer when reactivation not needed',async()=>{
+  core.setAudioNeedsReactivation(false);
+  const ctx=mockCtx('suspended','running');
+  const result=await core.ensureAudioUnlocked(ctx);
+  assert.equal(result,ctx);
+  assert.equal(ctx.state,'running');
+  assert.equal(ctx.unlockBufferPlayed,false);
+});
+
 test('ensureAudioUnlocked: failed unlock (context stays suspended) rejects with state in message',async()=>{
   core.setAudioNeedsReactivation(true);
   const ctx=mockCtx('suspended',null);
