@@ -107,7 +107,7 @@ test('favorites restore progression, direction brief and technique state', async
   // Drift away from the favorite.
   core.state.techniqueEnabled.backdoor=true;
   techEls.find(cb=>cb.dataset.tech==='backdoor').checked=true;
-  $('mood').value='Uplifting'; $('mood').dispatch('change');
+  $('mood').value='Dark'; $('mood').dispatch('change');
   core.composeAction();
   const fav=JSON.parse(storage.get('chordbloom.favorites'))[0];
   core.restoreSnapshot(fav.snapshot);
@@ -139,14 +139,108 @@ test('lock state only counts visible progression chords', async()=>{
   // Partial lock → recompose the rest.
   core.state.locks.fill(false); core.state.locks[0]=true;
   assert.equal(core.composeState().label,'RECOMPOSE UNLOCKED');
-  // All visible chords locked → recomposing unlocked chords would be a no-op.
+  // All visible chords locked → explicit disabled state, not a silent no-op.
   for(let i=0;i<n;i++) core.state.locks[i]=true;
-  assert.equal(core.composeState().label,'NEW IDEA','all-locked must not offer a no-op RECOMPOSE UNLOCKED');
+  assert.equal(core.composeState().label,'ALL CHORDS LOCKED','all-locked must surface a disabled state');
+  assert.equal(core.composeState().disabled,true);
   // Stale lock beyond the current progression length must be ignored.
   core.state.locks.fill(false); core.state.locks[n+3]=true;
   assert.equal(core.composeState().label,'NEW IDEA','out-of-range locks are stale and must be ignored');
-  // Pending direction outranks locks.
+  // Pending direction outranks partial locks.
   core.state.locks.fill(false); core.state.locks[0]=true;
   core.state.appliedDirection={...core.state.appliedDirection,mood:'Dark'};
   assert.equal(core.composeState().label,'APPLY CHANGES');
+});
+
+test('all chords locked: composeAction is a guarded no-op, not a fake new idea', async()=>{
+  const {core,$}=await freshApp();
+  const n=core.state.progression.length;
+  for(let i=0;i<n;i++) core.state.locks[i]=true;
+  core.updateComposeAction();
+  const before=JSON.stringify(core.state.progression), seedBefore=$('seed').value, historyBefore=core.state.history.length;
+  $('generateBtn').dispatch('click');
+  assert.equal(JSON.stringify(core.state.progression),before,'progression must not change');
+  assert.equal($('seed').value,seedBefore,'seed must not be rerolled');
+  assert.equal(core.state.history.length,historyBefore,'no history entry for a no-op');
+  assert.ok($('status').textContent.includes('unlock at least one chord'),`status must tell the user to unlock: ${$('status').textContent}`);
+  core.composeAction();
+  assert.equal(JSON.stringify(core.state.progression),before,'direct composeAction() invocation is guarded too');
+});
+
+test('all chords locked + pending Style change: appliedDirection stays unchanged', async()=>{
+  const {core,$}=await freshApp();
+  const n=core.state.progression.length;
+  for(let i=0;i<n;i++) core.state.locks[i]=true;
+  const appliedBefore={...core.state.appliedDirection};
+  $('style').value='HOUSE'; $('style').dispatch('change');
+  const cs=core.composeState();
+  assert.equal(cs.label,'UNLOCK A CHORD');
+  assert.equal(cs.disabled,true);
+  assert.ok($('status').textContent.includes('unlock at least one chord'),'status must tell the user to unlock');
+  $('generateBtn').dispatch('click');
+  assert.deepEqual({...core.state.appliedDirection},appliedBefore,'APPLY must not mark the new brief as applied');
+  assert.equal(core.composeState().pending,true,'the brief stays pending');
+});
+
+test('all chords locked + increased chord count re-enables APPLY CHANGES', async()=>{
+  const {core,$}=await freshApp();
+  const n=core.state.progression.length;
+  for(let i=0;i<n;i++) core.state.locks[i]=true;
+  $('count').value=String(n+2); $('count').dispatch('change');
+  const cs=core.composeState();
+  assert.equal(cs.label,'APPLY CHANGES','a larger count creates new unlocked positions');
+  assert.equal(cs.disabled,false);
+  const locked=core.state.progression.map(c=>JSON.stringify(c.notes));
+  $('generateBtn').dispatch('click');
+  assert.equal(core.state.progression.length,n+2);
+  assert.deepEqual(core.state.progression.slice(0,n).map(c=>JSON.stringify(c.notes)),locked,'existing locked chords stay exact');
+  assert.equal(core.composeState().pending,false,'the enlarged brief is genuinely applied');
+});
+
+test('unlocking one chord re-enables RECOMPOSE/APPLY and only recomposes unlocked chords', async()=>{
+  const {core,$}=await freshApp();
+  const n=core.state.progression.length;
+  for(let i=0;i<n;i++) core.state.locks[i]=true;
+  core.updateComposeAction();
+  assert.equal($('generateBtn').disabled,true);
+  core.state.locks[n-1]=false; core.updateComposeAction();
+  assert.equal(core.composeState().label,'RECOMPOSE UNLOCKED');
+  assert.equal($('generateBtn').disabled,false,'unlocking a chord re-enables the action');
+  const lockedBefore=core.state.progression.slice(0,n-1).map(c=>JSON.stringify(c.notes));
+  const unlockedBefore=JSON.stringify(core.state.progression[n-1].notes);
+  $('generateBtn').dispatch('click');
+  assert.deepEqual(core.state.progression.slice(0,n-1).map(c=>JSON.stringify(c.notes)),lockedBefore,'locked chords remain exact');
+  assert.notEqual(JSON.stringify(core.state.progression[n-1].notes),unlockedBefore,'the unlocked chord is recomposed');
+  // With a pending direction and one unlocked chord, APPLY is available again.
+  $('mood').value='Dark'; $('mood').dispatch('change');
+  assert.equal(core.composeState().label,'APPLY CHANGES');
+  assert.equal(core.composeState().disabled,false);
+});
+
+test('desktop and mobile disabled states stay synchronized', async()=>{
+  const {core,$}=await freshApp();
+  const n=core.state.progression.length;
+  const stateOf=id=>({disabled:$(id).disabled,aria:$(id).getAttribute('aria-disabled'),label:$(id).textContent});
+  for(let i=0;i<n;i++) core.state.locks[i]=true;
+  core.updateComposeAction();
+  assert.deepEqual(stateOf('generateBtn'),{disabled:true,aria:'true',label:'ALL CHORDS LOCKED'});
+  assert.deepEqual(stateOf('mabGenerateBtn'),{disabled:true,aria:'true',label:'LOCKED'});
+  $('style').value='HOUSE'; $('style').dispatch('change');
+  assert.deepEqual(stateOf('generateBtn'),{disabled:true,aria:'true',label:'UNLOCK A CHORD'});
+  assert.deepEqual(stateOf('mabGenerateBtn'),{disabled:true,aria:'true',label:'UNLOCK'});
+  core.state.locks[0]=false; core.updateComposeAction();
+  assert.deepEqual(stateOf('generateBtn'),{disabled:false,aria:'false',label:'APPLY CHANGES'});
+  assert.deepEqual(stateOf('mabGenerateBtn'),{disabled:false,aria:'false',label:'APPLY'});
+});
+
+test('reverting Direction changes clears the stale APPLY CHANGES status', async()=>{
+  const {core,$}=await freshApp();
+  $('mood').value='Dark'; $('mood').dispatch('change');
+  assert.ok($('status').textContent.includes('press APPLY CHANGES'));
+  $('mood').value='Dreamy'; $('mood').dispatch('change');
+  assert.equal(core.composeState().pending,false);
+  assert.equal($('status').textContent,'Direction changes reverted.','stale press-APPLY prompt must be cleared');
+  // A non-direction status is left untouched by a clean direction change event.
+  $('mood').dispatch('change');
+  assert.equal($('status').textContent,'Direction changes reverted.');
 });

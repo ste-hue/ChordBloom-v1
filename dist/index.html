@@ -958,23 +958,28 @@ button.primary.pending,.mab-btn.mab-primary.pending{background:var(--warn);color
     return out;
   }
   function composeState(){
-    if(!state.progression.length) return {label:'CREATE PROGRESSION',pending:false,diff:[]};
-    const diff=directionDiff(); if(diff.length) return {label:'APPLY CHANGES',pending:true,diff};
-    const lockedCount=state.locks.slice(0,state.progression.length).filter(Boolean).length;
-    if(lockedCount>0&&lockedCount<state.progression.length) return {label:'RECOMPOSE UNLOCKED',pending:false,diff:[]};
-    return {label:'NEW IDEA',pending:false,diff:[]};
+    if(!state.progression.length) return {label:'CREATE PROGRESSION',pending:false,disabled:false,diff:[]};
+    const visible=state.progression.length, lockedCount=state.locks.slice(0,visible).filter(Boolean).length, allLocked=lockedCount===visible;
+    const diff=directionDiff();
+    if(diff.length){
+      if(allLocked && Number($('count')?.value||0)<=visible) return {label:'UNLOCK A CHORD',pending:true,disabled:true,diff};
+      return {label:'APPLY CHANGES',pending:true,disabled:false,diff};
+    }
+    if(allLocked) return {label:'ALL CHORDS LOCKED',pending:false,disabled:true,diff:[]};
+    if(lockedCount>0) return {label:'RECOMPOSE UNLOCKED',pending:false,disabled:false,diff:[]};
+    return {label:'NEW IDEA',pending:false,disabled:false,diff:[]};
   }
-  const MAB_COMPOSE_LABELS={'APPLY CHANGES':'APPLY','CREATE PROGRESSION':'CREATE','RECOMPOSE UNLOCKED':'RECOMPOSE'};
+  const MAB_COMPOSE_LABELS={'APPLY CHANGES':'APPLY','CREATE PROGRESSION':'CREATE','RECOMPOSE UNLOCKED':'RECOMPOSE','ALL CHORDS LOCKED':'LOCKED','UNLOCK A CHORD':'UNLOCK'};
   function updateComposeAction(){
     const cs=composeState();
-    ['generateBtn','mabGenerateBtn'].forEach(id=>{ const b=$(id); if(!b)return; b.textContent=id==='mabGenerateBtn'?(MAB_COMPOSE_LABELS[cs.label]||cs.label):cs.label; b.classList.toggle('pending',cs.pending); });
+    ['generateBtn','mabGenerateBtn'].forEach(id=>{ const b=$(id); if(!b)return; b.textContent=id==='mabGenerateBtn'?(MAB_COMPOSE_LABELS[cs.label]||cs.label):cs.label; b.classList.toggle('pending',cs.pending); b.disabled=!!cs.disabled; b.setAttribute('aria-disabled',cs.disabled?'true':'false'); });
     const banner=$('pendingDirection'); if(!banner)return cs;
     if(cs.pending){ banner.hidden=false; banner.textContent=''; const head=document.createElement('b'); head.textContent=cs.diff.length===1?'Direction changed':`${cs.diff.length} direction changes pending`; banner.appendChild(head); cs.diff.forEach(t=>{ const span=document.createElement('span'); span.textContent=t; banner.appendChild(span); }); }
     else { banner.hidden=true; banner.textContent=''; }
     return cs;
   }
-  function composeAction(){ const cs=composeState(); if(cs.pending){ pushHistory(); generate('apply'); } else generate('new'); }
-  function markDirectionChanged(){ const cs=updateComposeAction(); if(cs.pending)setStatus('Direction changed — press APPLY CHANGES to hear it.'); }
+  function composeAction(){ const cs=composeState(); if(cs.disabled){ setStatus('All chords are locked — unlock at least one chord, then press APPLY CHANGES.'); return; } if(cs.pending){ pushHistory(); generate('apply'); } else generate('new'); }
+  function markDirectionChanged(){ const cs=updateComposeAction(); if(cs.pending) setStatus(cs.disabled?'All chords are locked — unlock at least one chord, then press APPLY CHANGES.':'Direction changed — press APPLY CHANGES to hear it.'); else if($('status').textContent.includes('APPLY CHANGES')) setStatus('Direction changes reverted.'); }
 
   function generate(mode='new') {
     const s=settings(); if(mode==='new'){ pushHistory(); $('seed').value=Math.floor((Date.now()*13 + Math.random()*1e8)%999999999)+1; }
