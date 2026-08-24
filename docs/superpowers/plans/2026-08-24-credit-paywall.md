@@ -229,7 +229,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 
 **Interfaces:**
 - Consumes: Task 1 schema and harness.
-- Produces HTTP API (all JSON): `POST /wallet/activate` `{license_key}` → `200 {wallet_id, balance}` | `401` invalid | `403` foreign store; `GET /wallet` (X-License-Key) → `200 {wallet_id, balance}` | `404`; `POST /wallet/spend` `{reason, idempotency_key}` → `200 {wallet_id, balance, replayed?}` | `402 {error:'insufficient_credits'}` | `404` | `429`. CORS per `ALLOWED_ORIGINS`.
+- Produces HTTP API (all JSON): `POST /wallet/activate` `{license_key}` → `200 {wallet_id, balance}` | `401` invalid | `403` foreign store; `GET /wallet` (X-License-Key) → `200 {wallet_id, balance}` | `404`; `POST /wallet/spend` `{reason, idempotency_key}` → `200 {wallet_id, balance, replayed?}` | `402 {error:'insufficient_credits'}` | `404` | `409 {error:'idempotency_conflict'}` (key already used by ANOTHER wallet — never a free success) | `429`. CORS per `ALLOWED_ORIGINS`.
 - Produces internals Task 3 reuses: `hashKey(key)`, `json(status, body, corsHeaders)`, `creditWallet(env, walletId, credits, externalId)`.
 
 - [ ] **Step 1: Write the failing tests**
@@ -372,6 +372,19 @@ describe('POST /wallet/spend', () => {
     expect(bal.balance).toBe(0);
   });
 
+  it("rejects another wallet's idempotency key with 409 and no debit", async () => {
+    await seedWallet('KEY-X1', 5);
+    const id2 = await seedWallet('KEY-X2', 5);
+    const spend = (key) => call(req('/wallet/spend', {
+      method: 'POST', key, body: {reason: 'midi_export', idempotency_key: 'shared-idem'}
+    }));
+    expect((await spend('KEY-X1')).status).toBe(200);
+    const res = await spend('KEY-X2');
+    expect(res.status).toBe(409);
+    const w2 = await env.DB.prepare('SELECT balance FROM wallets WHERE id = ?').bind(id2).first();
+    expect(w2.balance).toBe(5);
+  });
+
   it('429 beyond 30 exports per minute', async () => {
     const id = await seedWallet('KEY-S4', 100);
     const stmt = env.DB.prepare(
@@ -504,6 +517,10 @@ async function handleSpend(request, env, cors) {
   } catch (err) {
     const msg = String(err);
     if (msg.includes('UNIQUE')) {
+      // idempotency_key is globally UNIQUE: a collision is only a replay if the
+      // prior row belongs to THIS wallet — otherwise it's a cross-wallet conflict.
+      const prior = await env.DB.prepare('SELECT wallet_id FROM transactions WHERE idempotency_key = ?').bind(idem).first();
+      if (!prior || prior.wallet_id !== wallet.id) return json(409, {error: 'idempotency_conflict'}, cors);
       const fresh = await env.DB.prepare('SELECT balance FROM wallets WHERE id = ?').bind(wallet.id).first();
       return json(200, {wallet_id: wallet.id, balance: fresh.balance, replayed: true}, cors);
     }
@@ -539,7 +556,7 @@ export default {
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `cd worker && npm test`
-Expected: schema 3 + wallet 11, all passing.
+Expected: schema 3 + wallet 12, all passing.
 
 - [ ] **Step 5: Commit**
 
@@ -746,7 +763,7 @@ Note the top-up test uses order id 301 in BOTH events: crediting is attempted tw
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `cd worker && npm test`
-Expected: schema 3 + wallet 11 + webhook 5, all passing.
+Expected: schema 3 + wallet 12 + webhook 5, all passing.
 
 - [ ] **Step 5: Commit**
 
