@@ -14,7 +14,7 @@
     }
   ],
   "vars": {
-    "ALLOWED_ORIGINS": "https://ste-hue.github.io,http://localhost:4173",
+    "ALLOWED_ORIGINS": "https://chordbloom.app,https://www.chordbloom.app,https://ste-hue.github.io,http://localhost:4173",
     // Real values set in the deploy task from the user's LS dashboard:
     "LS_STORE_ID": "0",
     "PRODUCT_CREDITS": "{}"
