@@ -939,12 +939,13 @@ button.primary.pending,.mab-btn.mab-primary.pending{background:var(--warn);color
     };
   }
 
-  function snapshot() { return {progression:deep(state.progression), locks:[...state.locks], controls:captureControls()}; }
+  function snapshot() { return {progression:deep(state.progression), locks:[...state.locks], controls:captureControls(), appliedDirection:state.appliedDirection?{...state.appliedDirection}:null, techniqueEnabled:{...state.techniqueEnabled}}; }
   function pushHistory() { state.history.push(snapshot()); if(state.history.length>40) state.history.shift(); state.future=[]; }
   function captureControls(){ const o={}; document.querySelectorAll('select,input').forEach(el=>{ if(el.id)o[el.id]=el.type==='checkbox'?el.checked:el.value; }); return o; }
-  function restoreSnapshot(snap){ if(!snap)return; state.progression=deep(snap.progression); state.locks=[...snap.locks]; for(const [id,v] of Object.entries(snap.controls||{})){ const el=$(id); if(el){ if(el.type==='checkbox')el.checked=!!v; else el.value=v; } } state.appliedDirection=captureDirection(); refreshAll(false); }
+  function syncTechniqueUI(){ document.querySelectorAll('input[data-tech]').forEach(cb=>{ cb.checked=!!state.techniqueEnabled[cb.dataset.tech]; }); }
+  function restoreSnapshot(snap){ if(!snap)return; state.progression=deep(snap.progression); state.locks=[...snap.locks]; for(const [id,v] of Object.entries(snap.controls||{})){ const el=$(id); if(el){ if(el.type==='checkbox')el.checked=!!v; else el.value=v; } } if(snap.techniqueEnabled){ state.techniqueEnabled={...snap.techniqueEnabled}; syncTechniqueUI(); } state.appliedDirection=snap.appliedDirection?{...snap.appliedDirection}:captureDirection(); refreshAll(false); }
 
-  const DIRECTION_FIELDS=[['key','Key'],['scale','Scale'],['style','Style'],['mood','Mood'],['count','Chords'],['cadence','Cadence'],['tensionCurve','Tension curve'],['loopFriendly','Loop'],['theoryPalette','Palette']];
+  const DIRECTION_FIELDS=[['key','Key'],['scale','Scale'],['style','Style'],['mood','Mood'],['count','Chords'],['cadence','Cadence'],['tensionCurve','Tension curve'],['loopFriendly','Loop'],['theoryPalette','Palette'],['complexity','Complexity'],['tension','Tension'],['adventure','Adventure']];
   function captureDirection(){ const o={}; DIRECTION_FIELDS.forEach(([id])=>{ const el=$(id); if(el)o[id]=el.type==='checkbox'?el.checked:el.value; }); o.techniques=THEORY_TECHNIQUES.filter(([id])=>state.techniqueEnabled[id]).map(([id])=>id).join(','); return o; }
   function directionDiff(){
     if(!state.appliedDirection)return []; const cur=captureDirection(), was=state.appliedDirection, out=[];
@@ -959,7 +960,8 @@ button.primary.pending,.mab-btn.mab-primary.pending{background:var(--warn);color
   function composeState(){
     if(!state.progression.length) return {label:'CREATE PROGRESSION',pending:false,diff:[]};
     const diff=directionDiff(); if(diff.length) return {label:'APPLY CHANGES',pending:true,diff};
-    if(state.locks.some(Boolean)) return {label:'RECOMPOSE UNLOCKED',pending:false,diff:[]};
+    const lockedCount=state.locks.slice(0,state.progression.length).filter(Boolean).length;
+    if(lockedCount>0&&lockedCount<state.progression.length) return {label:'RECOMPOSE UNLOCKED',pending:false,diff:[]};
     return {label:'NEW IDEA',pending:false,diff:[]};
   }
   const MAB_COMPOSE_LABELS={'APPLY CHANGES':'APPLY','CREATE PROGRESSION':'CREATE','RECOMPOSE UNLOCKED':'RECOMPOSE'};
@@ -1827,7 +1829,7 @@ button.primary.pending,.mab-btn.mab-primary.pending{background:var(--warn);color
     document.querySelectorAll('.tab').forEach(btn=>btn.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.tab-panel').forEach(x=>x.classList.remove('active'));btn.classList.add('active');$(btn.dataset.tab).classList.add('active');});
     $('generateBtn').onclick=composeAction;$('similarBtn').onclick=()=>{pushHistory();generate('similar');};$('newSeedBtn').onclick=()=>{pushHistory();$('seed').value=Math.floor(Math.random()*999999998)+1;generate('apply');};$('playBtn').onclick=play;$('stopBtn').onclick=()=>{stopAudio();setStatus('Stopped.');};const dl=$('downloadBtn');dl.addEventListener('click',()=>{exportWithCredit();});
     $('undoBtn').onclick=()=>{if(!state.history.length)return;state.future.push(snapshot());restoreSnapshot(state.history.pop());};$('redoBtn').onclick=()=>{if(!state.future.length)return;state.history.push(snapshot());restoreSnapshot(state.future.pop());};$('saveFavBtn').onclick=saveFavorite;
-    $('resetBtn').onclick=()=>{pushHistory();Object.entries(DEFAULTS).forEach(([id,v])=>{const el=$(id);if(!el)return;if(el.type==='checkbox')el.checked=!!v;else el.value=v;});state.locks.fill(false);generate('apply');};
+    $('resetBtn').onclick=()=>{pushHistory();Object.entries(DEFAULTS).forEach(([id,v])=>{const el=$(id);if(!el)return;if(el.type==='checkbox')el.checked=!!v;else el.value=v;});state.locks.fill(false);state.techniqueEnabled=Object.fromEntries(THEORY_TECHNIQUES.map(x=>[x[0],true]));syncTechniqueUI();generate('apply');};
     $('copyTheoryBtn').onclick=async()=>{try{await navigator.clipboard.writeText($('theoryExplanation').innerText);setStatus('Theory explanation copied.');}catch{setStatus('Clipboard unavailable.');}};
     document.querySelectorAll('[data-transform]').forEach(b=>b.onclick=()=>applyTransform(b.dataset.transform));
     ['complexity','tension','adventure','spread','voiceLeading','crazyArpAmount','mpePower'].forEach(id=>$(id)?.addEventListener('input',updateOutputs));
@@ -1835,7 +1837,7 @@ button.primary.pending,.mab-btn.mab-primary.pending{background:var(--warn);color
     ['generationMode','grid','articulation','chordPerformance','harmonicRhythm','rhythmPattern','swing','minLen','maxLen','humanize','chordBeats','arpPattern','arpOctaves','crazyArp','crazyArpAmount','crazyCycle','crazyContinuous','strumDirection','strumWidth','mpeEnabled','mpePower','mpeMode','mpeBendRange','mpeGlide','mpeVibrato','mpeTimbre','mpePressure','mpeCommonToneHold','mpeTheoryAware','velocityMode','minVelocity','maxVelocity','exportMode','bpm'].forEach(id=>$(id)?.addEventListener('change',()=>refreshAll(true)));
     $('showTheory').onchange=()=>refreshAll(false);
     ['voicingMode','register','pedal','bassMovement','topVoice','spread','voiceLeading','avoidCrossing','counterpointAware'].forEach(id=>$(id)?.addEventListener('change',()=>{ if(!state.progression.length)return; pushHistory(); revoiceFrom(0); refreshAll(true); setStatus('Voicing updated.'); }));
-    ['key','scale','style','mood','count','cadence','tensionCurve','loopFriendly','theoryPalette'].forEach(id=>$(id)?.addEventListener('change',markDirectionChanged));
+    DIRECTION_FIELDS.forEach(([id])=>$(id)?.addEventListener('change',markDirectionChanged));
     window.addEventListener('resize',()=>drawPianoRoll());
     $('activateKeyBtn')?.addEventListener('click',()=>{activateKey();});
     const pianoBtn=$('pianoCollapseBtn');
@@ -1848,7 +1850,7 @@ button.primary.pending,.mab-btn.mab-primary.pending{background:var(--warn);color
 
   function runSelfTests(){
     const results=[]; const assert=(name,cond,detail='')=>results.push({name,pass:!!cond,detail});
-    const saved={progression:deep(state.progression),locks:[...state.locks],events:deep(state.events),timeline:deep(state.harmonyTimeline),history:deep(state.history),future:deep(state.future),generationIndex:state.generationIndex};
+    const saved={progression:deep(state.progression),locks:[...state.locks],events:deep(state.events),timeline:deep(state.harmonyTimeline),history:deep(state.history),future:deep(state.future),generationIndex:state.generationIndex,appliedDirection:state.appliedDirection?{...state.appliedDirection}:null,techniqueEnabled:{...state.techniqueEnabled}};
     try{
       const s=settings();
       assert('progression generated',state.progression.length===s.count,`${state.progression.length}/${s.count}`);
@@ -1868,7 +1870,7 @@ button.primary.pending,.mab-btn.mab-primary.pending{background:var(--warn);color
       const savedMode=$('generationMode').value, savedCrazy=$('crazyArp').checked, savedSwing=$('swing').value; $('generationMode').value='ARPEGGIO';$('crazyArp').checked=true;$('swing').value='50';generatePatternEvents(); const gs=settings(), gg=gridTicks(gs.grid); assert('crazy arp MIDI pitches valid',state.events.filter(e=>e.track==='Pattern').every(e=>e.note>=0&&e.note<=127)); assert('crazy arp remains grid locked',state.events.filter(e=>e.track==='Pattern').every(e=>Math.abs(e.start%gg)<1e-6)); assert('crazy arp creates cycle metadata',Array.isArray(state.crazyMeta?.cycles)&&state.crazyMeta.cycles.length>0); $('generationMode').value=savedMode;$('crazyArp').checked=savedCrazy;$('swing').value=savedSwing;
       const oldMpe=$('mpeEnabled').checked, oldPower=$('mpePower').value;$('mpeEnabled').checked=true;$('mpePower').value='55';generatePatternEvents();const mpeEvents=state.events.filter(e=>e.track==='Pattern');assert('MPE expressions generated',mpeEvents.length>0&&mpeEvents.every(e=>e.mpe&&e.mpe.bend&&e.mpe.timbre&&e.mpe.pressure));const mpeBytes=midiBytes();assert('MPE configuration present',(()=>{const a=Array.from(mpeBytes);return a.some((v,i)=>v===0xB0&&a[i+1]===101&&a[i+2]===0&&a[i+3]===0&&a[i+4]===0xB0&&a[i+5]===100&&a[i+6]===6);})());assert('MPE member channel note-ons present',Array.from(mpeBytes).some(v=>(v&0xF0)===0x90&&(v&0x0F)>=1));$('mpeEnabled').checked=oldMpe;$('mpePower').value=oldPower;generatePatternEvents();
     }catch(err){results.push({name:'self-test exception',pass:false,detail:String(err?.stack||err)});}
-    state.progression=saved.progression;state.locks=saved.locks;state.events=saved.events;state.harmonyTimeline=saved.timeline;state.history=saved.history;state.future=saved.future;state.generationIndex=saved.generationIndex;
+    state.progression=saved.progression;state.locks=saved.locks;state.events=saved.events;state.harmonyTimeline=saved.timeline;state.history=saved.history;state.future=saved.future;state.generationIndex=saved.generationIndex;state.appliedDirection=saved.appliedDirection;state.techniqueEnabled=saved.techniqueEnabled;syncTechniqueUI();
     refreshAll(true);
     window.__CHORDBLOOM_TESTS__=results; console.table(results); return results;
   }
@@ -1877,7 +1879,7 @@ button.primary.pending,.mab-btn.mab-primary.pending{background:var(--warn);color
     window.ChordBloom={generate:()=>generate('new'),moreLikeThis:()=>generate('similar'),downloadMidi,saveMidiFile,prepareMidiDownload,midiBytes,generatePatternEvents,getState:()=>deep(state),settings,runSelfTests};
   }
 
-  globalThis.__ChordBloomCore={PPQ,SCALES,STYLES,MOODS,KEY_PC,baseDegrees,chooseChord,candidateScore,makeCandidates,chordSymbol,diatonicChord,borrowedChord,secondaryDominant,secondaryTwo,tritoneSub,backdoor,diminishedApproach,neapolitan,augmentedSixth,chromaticMediant,quartalChord,upperStructure,voiceChord,gridTicks,harmonicDurations,rhythmMask,arpOrder,crazyArpPlan,crazyCycleLength,safeTensionPcs,closestMidiForPc,gateSteps,naturalChordGate,nearestVoiceTarget,mergeNaturalCommonTones,makeMpeCurve,applyMpeExpression,allocateMpeChannels,pitchBend14,mpeMidiTrackWithSettings,midiBytesFrom,mulberry32,hashSeed,degreeRoot,noteName,activateAudioContext,ensureAudioUnlocked,requestSpend,mintIdempotencyKey};
+  globalThis.__ChordBloomCore={PPQ,SCALES,STYLES,MOODS,KEY_PC,baseDegrees,chooseChord,candidateScore,makeCandidates,chordSymbol,diatonicChord,borrowedChord,secondaryDominant,secondaryTwo,tritoneSub,backdoor,diminishedApproach,neapolitan,augmentedSixth,chromaticMediant,quartalChord,upperStructure,voiceChord,gridTicks,harmonicDurations,rhythmMask,arpOrder,crazyArpPlan,crazyCycleLength,safeTensionPcs,closestMidiForPc,gateSteps,naturalChordGate,nearestVoiceTarget,mergeNaturalCommonTones,makeMpeCurve,applyMpeExpression,allocateMpeChannels,pitchBend14,mpeMidiTrackWithSettings,midiBytesFrom,mulberry32,hashSeed,degreeRoot,noteName,activateAudioContext,ensureAudioUnlocked,requestSpend,mintIdempotencyKey,state,DEFAULTS,DIRECTION_FIELDS,THEORY_TECHNIQUES,captureDirection,directionDiff,composeState,updateComposeAction,composeAction,markDirectionChanged,snapshot,restoreSnapshot,pushHistory,generate,settings,bindUI,saveFavorite,syncTechniqueUI,refreshAll};
 
   if(typeof document!=='undefined'){ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init(); }
 })();
