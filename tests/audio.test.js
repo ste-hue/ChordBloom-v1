@@ -4,7 +4,7 @@ import {loadCore} from './helpers/load-core.js';
 
 const core=await loadCore();
 
-// --- activateAudioContext tests (unchanged) ---
+// --- activateAudioContext tests (updated: error message now includes live state) ---
 
 test('activateAudioContext resumes a suspended context',async()=>{
   let resumed=false;
