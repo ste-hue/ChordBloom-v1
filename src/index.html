@@ -18,7 +18,7 @@
 
 /* v1.4 — Simple/Expert + contextual help + MPE */
 .view-mode-bar{display:flex;justify-content:space-between;align-items:center;gap:18px;margin:0 0 14px;padding:10px 12px;border:1px solid var(--line);background:rgba(13,17,24,.78);border-radius:14px}.view-copy{display:flex;flex-direction:column;gap:3px}.view-copy b{font-size:12px;letter-spacing:.08em}.view-copy span{font-size:11px;color:var(--muted)}.view-switch{display:flex;gap:5px;background:#0e1218;padding:4px;border-radius:10px;border:1px solid var(--line)}.view-switch button{padding:7px 12px;font-size:11px;background:transparent}.view-switch button.active{background:var(--accent);color:#081006;border-color:transparent}.mpe-inline{border:1px solid rgba(143,208,255,.30);background:linear-gradient(135deg,rgba(143,208,255,.08),rgba(181,255,122,.04));padding:10px;border-radius:13px}.mpe-inline .toggle-field{background:transparent;border:0;padding:0;justify-content:flex-start}.mpe-inline .slider-field{margin-top:7px}.mpe-badge{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:850;letter-spacing:.08em;color:var(--accent2)}.mpe-dot{width:7px;height:7px;border-radius:50%;background:#45515f}.mpe-on .mpe-dot{background:var(--accent2);box-shadow:0 0 12px rgba(143,208,255,.75)}.mpe-theory{margin-top:12px;background:#0f131a;border:1px solid var(--line);border-radius:13px;padding:12px;color:var(--muted);font-size:11px;line-height:1.5}.mpe-theory strong{color:var(--text)}
-.help-tooltip{position:fixed;z-index:99999;pointer-events:none;max-width:310px;padding:9px 11px;border-radius:10px;background:#080b10;border:1px solid #3b4556;color:#e9edf5;font-size:11px;line-height:1.45;box-shadow:0 12px 35px rgba(0,0,0,.42);opacity:0;transform:translateY(4px);transition:opacity .09s ease,transform .09s ease}.help-tooltip.visible{opacity:1;transform:translateY(0)}
+.help-tooltip{position:fixed;z-index:99999;pointer-events:none;max-width:310px;padding:9px 11px;border-radius:10px;background:#080b10;border:1px solid #3b4556;color:#e9edf5;font-size:11px;line-height:1.45;box-shadow:0 12px 35px rgba(0,0,0,.42);opacity:0;transform:translateY(4px);transition:opacity .09s ease,transform .09s ease}.help-tooltip.visible{opacity:1;transform:translateY(0)}.help-mode-btn{font-size:12px;padding:6px 10px;opacity:.7}.help-mode-btn.active{opacity:1;background:var(--accent2);color:#08111b;border-color:transparent}.help-mode-btn:focus-visible{outline:2px solid var(--accent2);outline-offset:2px}@media (hover:hover) and (pointer:fine){.help-mode-btn{display:none}}
 .simple-view .expert-only{display:none!important}.simple-view .simple-hide{display:none!important}.simple-view .tabs .expert-tab{display:none!important}.simple-view #theoryPanel,.simple-view .favorites-panel{display:none}.simple-view .macro-grid{grid-template-columns:repeat(4,1fr)}.simple-view .primary-panel{border-color:#3c4858}.simple-view .subtitle:after{content:' · Simple View keeps the strongest musical guard rails on.';color:var(--accent)}.expert-view .expert-grid{display:grid}.mpe-panel-active{box-shadow:inset 0 0 0 1px rgba(143,208,255,.10)}
 @media(max-width:900px){.simple-view .macro-grid{grid-template-columns:repeat(2,1fr)}.view-mode-bar{align-items:flex-start;flex-direction:column}.view-switch{width:100%}.view-switch button{flex:1}}
 .credits-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
@@ -40,6 +40,7 @@
       <button id="redoBtn" class="ghost" title="Redo">↷</button>
       <button id="saveFavBtn" class="ghost">♡ Save</button>
       <button id="resetBtn" class="ghost">Reset</button>
+      <button id="helpModeBtn" class="ghost help-mode-btn" aria-pressed="false" title="Toggle help mode: tap any control to see its explanation">? Help</button>
     </div>
   </header>
 
@@ -1716,7 +1717,24 @@
     const tip=$('helpTooltip'); if(!tip)return;
     const move=(x,y)=>{const pad=14,w=tip.offsetWidth||280,h=tip.offsetHeight||60;tip.style.left=Math.min(innerWidth-w-pad,Math.max(pad,x+14))+'px';tip.style.top=Math.min(innerHeight-h-pad,Math.max(pad,y+14))+'px';};
     const show=(el,x,y)=>{const msg=el?.dataset?.help;if(!msg)return;tip.textContent=msg;tip.classList.add('visible');move(x,y);};
-    document.addEventListener('mouseover',e=>{const el=e.target.closest('[data-help]');if(el)show(el,e.clientX,e.clientY);}); document.addEventListener('mousemove',e=>{if(tip.classList.contains('visible'))move(e.clientX,e.clientY);}); document.addEventListener('mouseout',e=>{if(e.target.closest('[data-help]'))tip.classList.remove('visible');}); document.addEventListener('focusin',e=>{const el=e.target.closest('[data-help]');if(el){const r=el.getBoundingClientRect();show(el,r.left+r.width/2,r.bottom);}}); document.addEventListener('focusout',()=>tip.classList.remove('visible'));
+    const hide=()=>tip.classList.remove('visible');
+    const hasHover=window.matchMedia('(hover:hover) and (pointer:fine)').matches;
+    if(hasHover){
+      document.addEventListener('mouseover',e=>{const el=e.target.closest('[data-help]');if(el)show(el,e.clientX,e.clientY);}); document.addEventListener('mousemove',e=>{if(tip.classList.contains('visible'))move(e.clientX,e.clientY);}); document.addEventListener('mouseout',e=>{if(e.target.closest('[data-help]'))hide();}); document.addEventListener('focusin',e=>{const el=e.target.closest('[data-help]');if(el){const r=el.getBoundingClientRect();show(el,r.left+r.width/2,r.bottom);}}); document.addEventListener('focusout',hide);
+    } else {
+      let helpMode=false;
+      const helpBtn=$('helpModeBtn');
+      const setHelpMode=on=>{helpMode=on;helpBtn?.classList.toggle('active',on);helpBtn?.setAttribute('aria-pressed',String(on));if(!on)hide();};
+      helpBtn?.addEventListener('click',()=>setHelpMode(!helpMode));
+      document.addEventListener('click',e=>{
+        if(!helpMode)return;
+        const el=e.target.closest('[data-help]');
+        if(el&&el!==helpBtn){e.preventDefault();e.stopImmediatePropagation();const r=el.getBoundingClientRect();show(el,r.left+r.width/2,r.bottom+8);return;}
+        if(tip.classList.contains('visible')){hide();return;}
+        if(el!==helpBtn)setHelpMode(false);
+      },true);
+      document.querySelectorAll('.tab').forEach(btn=>btn.addEventListener('click',()=>hide(),{capture:true}));
+    }
   }
 
   function setViewMode(mode,remember=true){
