@@ -976,12 +976,12 @@ button.primary:disabled,.mab-btn.mab-primary:disabled{background:#242b37;color:v
     const cs=composeState();
     ['generateBtn','mabGenerateBtn'].forEach(id=>{ const b=$(id); if(!b)return; b.textContent=id==='mabGenerateBtn'?(MAB_COMPOSE_LABELS[cs.label]||cs.label):cs.label; b.classList.toggle('pending',cs.pending&&!cs.disabled); b.disabled=cs.disabled; b.setAttribute('aria-disabled',String(cs.disabled)); });
     const banner=$('pendingDirection'); if(!banner)return cs;
-    if(cs.pending||cs.disabled){ banner.hidden=false; banner.textContent=''; const head=document.createElement('b'); head.textContent=cs.disabled?'All chords locked':(cs.diff.length===1?'Direction changed':`${cs.diff.length} direction changes pending`); banner.appendChild(head); cs.diff.forEach(t=>{ const span=document.createElement('span'); span.textContent=t; banner.appendChild(span); }); if(cs.disabled){ const hint=document.createElement('span'); hint.textContent='Unlock at least one chord to compose.'; banner.appendChild(hint); } }
+    if(cs.pending||cs.disabled){ banner.hidden=false; banner.textContent=''; const head=document.createElement('b'); const pendingText=cs.diff.length===1?'Direction changed':`${cs.diff.length} direction changes pending`; head.textContent=cs.disabled?(cs.pending?`All chords locked — ${pendingText.toLowerCase()}`:'All chords locked'):pendingText; banner.appendChild(head); cs.diff.forEach(t=>{ const span=document.createElement('span'); span.textContent=t; banner.appendChild(span); }); if(cs.disabled){ const hint=document.createElement('span'); hint.textContent='Unlock at least one chord to compose.'; banner.appendChild(hint); } }
     else { banner.hidden=true; banner.textContent=''; }
     return cs;
   }
   let directionStatusShown=false;
-  function composeAction(){ const cs=updateComposeAction(); if(cs.disabled){ setStatus('All chords are locked — unlock at least one chord to compose.'); return; } if(cs.pending){ pushHistory(); generate('apply'); } else generate('new'); }
+  function composeAction(){ const cs=updateComposeAction(); if(cs.disabled){ setStatus(cs.pending?'Direction changed — unlock at least one chord to apply it.':'All chords are locked — unlock at least one chord to compose.'); return; } if(cs.pending){ pushHistory(); generate('apply'); } else generate('new'); }
   function markDirectionChanged(){ const cs=updateComposeAction(); if(cs.pending&&cs.disabled){ setStatus('Direction changed — unlock at least one chord to apply it.'); directionStatusShown=true; } else if(cs.pending){ setStatus('Direction changed — press APPLY CHANGES to hear it.'); directionStatusShown=true; } else if(directionStatusShown){ setStatus('Direction changes reverted.'); directionStatusShown=false; } }
 
   function generate(mode='new') {
