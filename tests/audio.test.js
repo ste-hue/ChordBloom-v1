@@ -65,6 +65,7 @@ function mockCtx(initialState,resumeTransition){
 }
 
 test('ensureAudioUnlocked: first user-gesture unlock from suspended plays silent buffer',async()=>{
+  core.setAudioNeedsReactivation(true);
   const ctx=mockCtx('suspended','running');
   const result=await core.ensureAudioUnlocked(ctx);
   assert.equal(result,ctx);
@@ -72,7 +73,8 @@ test('ensureAudioUnlocked: first user-gesture unlock from suspended plays silent
   assert.equal(ctx.unlockBufferPlayed,true);
 });
 
-test('ensureAudioUnlocked: already-running context is not resumed and still plays silent buffer',async()=>{
+test('ensureAudioUnlocked: already-running context is not resumed and plays silent buffer when reactivation needed',async()=>{
+  core.setAudioNeedsReactivation(true);
   let resumeCalls=0;
   const ctx=mockCtx('running',null);
   const origResume=ctx.resume.bind(ctx);
@@ -83,6 +85,7 @@ test('ensureAudioUnlocked: already-running context is not resumed and still play
 });
 
 test('ensureAudioUnlocked: interrupted context is resumed and unlocked',async()=>{
+  core.setAudioNeedsReactivation(true);
   const ctx=mockCtx('interrupted','running');
   const result=await core.ensureAudioUnlocked(ctx);
   assert.equal(result,ctx);
@@ -90,14 +93,24 @@ test('ensureAudioUnlocked: interrupted context is resumed and unlocked',async()=
   assert.equal(ctx.unlockBufferPlayed,true);
 });
 
-test('ensureAudioUnlocked: context returning from background (running) still plays silent buffer',async()=>{
+test('ensureAudioUnlocked: context returning from background (running) plays silent buffer',async()=>{
+  core.setAudioNeedsReactivation(true);
   const ctx=mockCtx('running',null);
   const result=await core.ensureAudioUnlocked(ctx);
   assert.equal(result,ctx);
   assert.equal(ctx.unlockBufferPlayed,true);
 });
 
+test('ensureAudioUnlocked: skips silent buffer when reactivation not needed',async()=>{
+  core.setAudioNeedsReactivation(false);
+  const ctx=mockCtx('running',null);
+  const result=await core.ensureAudioUnlocked(ctx);
+  assert.equal(result,ctx);
+  assert.equal(ctx.unlockBufferPlayed,false);
+});
+
 test('ensureAudioUnlocked: failed unlock (context stays suspended) rejects with state in message',async()=>{
+  core.setAudioNeedsReactivation(true);
   const ctx=mockCtx('suspended',null);
   await assert.rejects(()=>core.ensureAudioUnlocked(ctx),err=>{
     assert.ok(/unavailable/i.test(err.message),'message should mention unavailable');

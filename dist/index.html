@@ -1414,7 +1414,7 @@
   }
 
   let sharedAudioCtx=null;
-  let _audioNeedsReactivation=false;
+  let _audioNeedsReactivation=true;
   async function activateAudioContext(context){
     if(context.state==='closed')throw new Error('Audio output is closed. Reload the page to play sound again.');
     if((context.state==='suspended'||context.state==='interrupted')&&typeof context.resume==='function'){
@@ -1426,9 +1426,11 @@
   }
   async function ensureAudioUnlocked(ctx){
     await activateAudioContext(ctx);
+    if(!_audioNeedsReactivation)return ctx;
     let bufferPlayed=false;
     try{const buf=ctx.createBuffer(1,1,ctx.sampleRate||44100);const src=ctx.createBufferSource();src.buffer=buf;src.connect(ctx.destination);src.start(0);src.stop(ctx.currentTime+0.001);bufferPlayed=true;}catch{}
-    if(bufferPlayed)_audioNeedsReactivation=false;
+    if(!bufferPlayed)throw new Error('Audio unavailable (state: '+ctx.state+'). Tap PLAY to enable audio.');
+    _audioNeedsReactivation=false;
     return ctx;
   }
   function audioContext(){
@@ -1787,7 +1789,8 @@
     window.ChordBloom={generate:()=>generate('new'),moreLikeThis:()=>generate('similar'),downloadMidi,saveMidiFile,prepareMidiDownload,midiBytes,generatePatternEvents,getState:()=>deep(state),settings,runSelfTests};
   }
 
-  globalThis.__ChordBloomCore={PPQ,SCALES,STYLES,MOODS,KEY_PC,baseDegrees,chooseChord,candidateScore,makeCandidates,chordSymbol,diatonicChord,borrowedChord,secondaryDominant,secondaryTwo,tritoneSub,backdoor,diminishedApproach,neapolitan,augmentedSixth,chromaticMediant,quartalChord,upperStructure,voiceChord,gridTicks,harmonicDurations,rhythmMask,arpOrder,crazyArpPlan,crazyCycleLength,safeTensionPcs,closestMidiForPc,gateSteps,naturalChordGate,nearestVoiceTarget,mergeNaturalCommonTones,makeMpeCurve,applyMpeExpression,allocateMpeChannels,pitchBend14,mpeMidiTrackWithSettings,midiBytesFrom,mulberry32,hashSeed,degreeRoot,noteName,activateAudioContext,ensureAudioUnlocked,requestSpend,mintIdempotencyKey};
+  function setAudioNeedsReactivation(v){_audioNeedsReactivation=v;}
+  globalThis.__ChordBloomCore={PPQ,SCALES,STYLES,MOODS,KEY_PC,baseDegrees,chooseChord,candidateScore,makeCandidates,chordSymbol,diatonicChord,borrowedChord,secondaryDominant,secondaryTwo,tritoneSub,backdoor,diminishedApproach,neapolitan,augmentedSixth,chromaticMediant,quartalChord,upperStructure,voiceChord,gridTicks,harmonicDurations,rhythmMask,arpOrder,crazyArpPlan,crazyCycleLength,safeTensionPcs,closestMidiForPc,gateSteps,naturalChordGate,nearestVoiceTarget,mergeNaturalCommonTones,makeMpeCurve,applyMpeExpression,allocateMpeChannels,pitchBend14,mpeMidiTrackWithSettings,midiBytesFrom,mulberry32,hashSeed,degreeRoot,noteName,activateAudioContext,ensureAudioUnlocked,setAudioNeedsReactivation,requestSpend,mintIdempotencyKey};
 
   if(typeof document!=='undefined'){ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init(); }
 })();
