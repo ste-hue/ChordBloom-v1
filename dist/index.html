@@ -31,6 +31,11 @@
 .mab-btn.mab-primary{background:var(--accent);color:#091106;border-color:transparent}
 .mab-btn.mab-accent{background:var(--accent2);color:#08111b;border-color:transparent}
 @media(max-width:650px) and (orientation:landscape){.mobile-action-bar{padding-left:max(12px,env(safe-area-inset-left,12px));padding-right:max(12px,env(safe-area-inset-right,12px))}}.mobile-action-bar .mab-btn:hover{transform:translateY(-1px)}
+body.touch-mobile .mobile-action-bar{display:flex}
+body.touch-mobile .top-actions{display:none}
+body.touch-mobile #generateBtn,body.touch-mobile #playBtn,body.touch-mobile #stopBtn,body.touch-mobile #downloadBtn{display:none}
+@media(min-width:651px){body.touch-mobile .app-shell{padding-bottom:calc(76px + env(safe-area-inset-bottom,0px))}}
+@media(orientation:landscape){body.touch-mobile .mobile-action-bar{padding-left:max(12px,env(safe-area-inset-left,12px));padding-right:max(12px,env(safe-area-inset-right,12px))}}
 
 /* Collapsible piano roll */
 #pianoRollWrap{overflow:hidden;max-height:400px;transition:max-height .25s ease}
@@ -1833,6 +1838,7 @@
     window.__CHORDBLOOM_TESTS__=results; console.table(results); return results;
   }
   function init(){
+    const applyTouchMobile=()=>{document.body.classList.toggle('touch-mobile','ontouchstart' in window||navigator.maxTouchPoints>0);};applyTouchMobile();
     initControls();bindUI();setupHelp();let vm='simple';try{vm=localStorage.getItem('chordbloomView')||DEFAULTS.viewMode||'simple';}catch{}setViewMode(vm,false);generate('apply');refreshAll(true);if(window.matchMedia('(max-width:650px)').matches){const wrap=$('pianoRollWrap'),btn=$('pianoCollapseBtn');if(wrap&&btn){wrap.classList.add('collapsed');btn.textContent='Show Piano Roll';btn.setAttribute('aria-expanded','false');}}renderCredits();refreshBalance();if(new URLSearchParams(location.search).has('selftest'))setTimeout(runSelfTests,50);
     window.ChordBloom={generate:()=>generate('new'),moreLikeThis:()=>generate('similar'),downloadMidi,saveMidiFile,prepareMidiDownload,midiBytes,generatePatternEvents,getState:()=>deep(state),settings,runSelfTests};
   }
