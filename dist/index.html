@@ -1443,7 +1443,7 @@
 
   function markAudioNeedsReactivation(){ if(sharedAudioCtx&&sharedAudioCtx.state!=='closed')sharedAudioCtx._audioNeedsReactivation=true; }
   if(typeof document!=='undefined'){
-    document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')markAudioNeedsReactivation();});
+    document.addEventListener('visibilitychange',markAudioNeedsReactivation);
     window.addEventListener('pageshow',e=>{if(e.persisted)markAudioNeedsReactivation();});
   }
 
