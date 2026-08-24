@@ -100,7 +100,7 @@ async function handleWebhook(request, env) {
 
   if (event === 'license_key_created' && !custom.wallet_id) {
     const credits = productCredits(env, attrs.product_id);
-    if (!credits || typeof attrs.key !== 'string' || !attrs.key) return json(200, {ignored: true}, {});
+    if (!credits || typeof attrs.key !== 'string' || !attrs.key || attrs.order_id == null) return json(200, {ignored: true}, {});
     const wallet = await findOrCreateWallet(env, await hashKey(attrs.key));
     const result = await creditWallet(env, wallet.id, credits, `order-${attrs.order_id}`);
     return json(200, result, {});
@@ -110,9 +110,10 @@ async function handleWebhook(request, env) {
     const item = attrs.first_order_item || {};
     const credits = productCredits(env, item.product_id);
     if (!credits) return json(200, {ignored: true}, {});
-    const wallet = await env.DB.prepare('SELECT id FROM wallets WHERE id = ?').bind(custom.wallet_id).first();
-    if (!wallet) return json(200, {ignored: true, unknown_wallet: true}, {});
     const orderId = payload.data.id || attrs.identifier;
+    if (orderId == null) return json(200, {ignored: true}, {});
+    const wallet = await env.DB.prepare('SELECT id FROM wallets WHERE id = ?').bind(custom.wallet_id).first();
+    if (!wallet) { console.log(JSON.stringify({level: 'error', alert: 'topup_unknown_wallet', wallet_id: custom.wallet_id, order_id: orderId})); return json(200, {ignored: true, unknown_wallet: true}, {}); }
     const result = await creditWallet(env, wallet.id, credits, `order-${orderId}`);
     return json(200, result, {});
   }
@@ -131,7 +132,9 @@ async function handleActivate(request, env, cors) {
     headers: {Accept: 'application/json', 'Content-Type': 'application/json'},
     body: JSON.stringify({license_key: key})
   });
-  const ls = await lsRes.json().catch(() => ({}));
+  if (lsRes.status >= 500) return json(502, {error: 'ls_unavailable'}, cors);
+  const ls = await lsRes.json().catch(() => null);
+  if (!ls) return json(502, {error: 'ls_unavailable'}, cors);
   if (!ls.valid) return json(401, {error: 'invalid_license'}, cors);
   if (!ls.meta || Number(ls.meta.store_id) !== Number(env.LS_STORE_ID)) {
     return json(403, {error: 'wrong_store'}, cors);

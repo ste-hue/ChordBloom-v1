@@ -86,6 +86,17 @@ describe('POST /webhooks/ls', () => {
     expect(orphan).toBeNull();
   });
 
+  it('ignores a license_key_created with no order id', async () => {
+    const body = licenseKeyCreated({key: 'LSK-NOORDER', productId: 111});
+    const res = await post(body, await sign(body, SECRET));
+    expect(res.status).toBe(200);
+    expect((await res.json()).ignored).toBe(true);
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('LSK-NOORDER'));
+    const hash = [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, '0')).join('');
+    const w = await env.DB.prepare('SELECT id FROM wallets WHERE license_key_hash = ?').bind(hash).first();
+    expect(w).toBeNull();
+  });
+
   it('ignores events for unmapped products', async () => {
     const body = licenseKeyCreated({key: 'LSK-ODD', orderId: 400, productId: 999});
     const res = await post(body, await sign(body, SECRET));

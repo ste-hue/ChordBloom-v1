@@ -1554,7 +1554,7 @@
   function renderCredits(msg=''){
     const bal=$('creditBalance'); if(bal) bal.textContent=!CREDITS_API?'—':(creditState.balance==null?'—':`${creditState.balance} credits`);
     const buy=$('buyCreditsBtn');
-    if(buy){ const custom=creditState.walletId?`?checkout[custom][wallet_id]=${encodeURIComponent(creditState.walletId)}`:''; buy.href=LS_CHECKOUT_URL?LS_CHECKOUT_URL+custom:'#'; buy.style.display=LS_CHECKOUT_URL?'':'none'; }
+    if(buy){ const sep=LS_CHECKOUT_URL.includes('?')?'&':'?'; buy.href=LS_CHECKOUT_URL?LS_CHECKOUT_URL+(creditState.walletId?sep+'checkout[custom][wallet_id]='+encodeURIComponent(creditState.walletId):''):'#'; buy.style.display=LS_CHECKOUT_URL?'':'none'; }
     const st=$('creditsStatus'); if(st) st.textContent=msg||(!CREDITS_API?'Credits not enabled yet.':'');
   }
   function highlightCreditsPanel(){ const p=$('creditsPanel'); if(!p)return; p.classList.add('attention'); p.scrollIntoView({behavior:'smooth',block:'center'}); setTimeout(()=>p.classList.remove('attention'),2500); }
@@ -1566,7 +1566,7 @@
       const r=await fetch(CREDITS_API+'/wallet/activate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({license_key:key})});
       const body=await r.json().catch(()=>({}));
       if(!r.ok){renderCredits(r.status===401?'That license key is not valid.':'Could not activate the key. Try again.');return;}
-      creditState.key=key;storageSet('chordbloom.licenseKey',key);rememberWallet(body.balance,body.wallet_id);renderCredits('Key activated.');
+      creditState.key=key;storageSet('chordbloom.licenseKey',key);creditState.pendingIdem=null;rememberWallet(body.balance,body.wallet_id);renderCredits('Key activated.');
     }catch{renderCredits('Credit service unreachable — try again with a connection.');}
   }
   async function refreshBalance(){
@@ -1579,6 +1579,8 @@
     if(!creditState.pendingIdem) creditState.pendingIdem=mintIdempotencyKey();
     const res=await requestSpend((...a)=>fetch(...a),CREDITS_API,creditState.key,creditState.pendingIdem);
     if(res.status===402){ setStatus('No credits left — buy a pack to export.'); highlightCreditsPanel(); rememberWallet(0,res.walletId); return; }
+    if(res.status===409){ creditState.pendingIdem=null; setStatus('Export session reset — press DOWNLOAD again.'); return; }
+    if(res.status===429){ setStatus('Too many exports — wait a minute and retry.'); return; }
     if(!res.ok){ setStatus('Credit service unreachable — export needs a connection.'); return; }
     rememberWallet(res.balance,res.walletId);
     const saved=await saveMidiFile();

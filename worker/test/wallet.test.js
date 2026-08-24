@@ -95,6 +95,21 @@ describe('POST /wallet/activate', () => {
     mockLemonSqueezy(200, {valid: true, meta: {store_id: 999}});
     expect((await call(req('/wallet/activate', {method: 'POST', body: {license_key: 'FOREIGN'}}))).status).toBe(403);
   });
+
+  it('502 when Lemon Squeezy is down', async () => {
+    mockLemonSqueezy(500, {error: 'internal'});
+    expect((await call(req('/wallet/activate', {method: 'POST', body: {license_key: 'DOWN'}}))).status).toBe(502);
+  });
+
+  it('502 when Lemon Squeezy returns unparseable JSON', async () => {
+    vi.stubGlobal('fetch', async (url, init = {}) => {
+      if (String(url) !== LS_VALIDATE_URL || (init.method || 'GET') !== 'POST') {
+        throw new Error(`unexpected fetch: ${init.method || 'GET'} ${url}`);
+      }
+      return new Response('not json', {status: 200, headers: {'Content-Type': 'text/plain'}});
+    });
+    expect((await call(req('/wallet/activate', {method: 'POST', body: {license_key: 'GARBLED'}}))).status).toBe(502);
+  });
 });
 
 describe('POST /wallet/spend', () => {

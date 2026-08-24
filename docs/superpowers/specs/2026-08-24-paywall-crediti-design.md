@@ -84,7 +84,7 @@ never in URLs.
 - `POST /wallet/spend` `{reason:'midi_export', idempotency_key}` — atomic
   decrement; `200 {balance}` on success, `402` when balance is 0, replayed
   idempotency_key returns the original `200` without double-spending.
-- `POST /webhooks/lemonsqueezy` — HMAC signature verified (webhook secret is
+- `POST /webhooks/ls` — HMAC signature verified (webhook secret is
   a Worker secret). On order events: credit the wallet named by checkout
   `custom` data if present (top-up), otherwise create a wallet from the
   order's newly generated license key (first purchase). `external_id`
