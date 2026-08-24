@@ -54,7 +54,7 @@ const EXTRA_IDS = ['generateBtn','mabGenerateBtn','similarBtn','newSeedBtn','pla
 
 export async function loadApp(){
   const html=await readFile(new URL('../../src/index.html',import.meta.url),'utf8');
-  const m=html.match(/<script>([\s\S]*)<\/script>/);
+  const m=html.match(/<script>([\s\S]*?)<\/script>/i);
   if(!m) throw new Error('No inline <script> block found in src/index.html');
 
   const els=new Map();
