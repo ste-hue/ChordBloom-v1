@@ -112,8 +112,9 @@ function buildEnv(matchesHover){
 // ---------------------------------------------------------------------------
 
 const html=await readFile(new URL('../src/index.html',import.meta.url),'utf8');
-// Extract setupHelp function body
-const fnMatch=html.match(/function setupHelp\(\)\{([\s\S]*?)\n  \}/);
+// Extract setupHelp function body — match greedily up to the closing brace
+// immediately before the next `function ` definition at the same indent level.
+const fnMatch=html.match(/function setupHelp\(\)\{([\s\S]+?)\n  \}\n\n  function /);
 assert.ok(fnMatch,'setupHelp function not found in src/index.html');
 const setupHelpBody=fnMatch[1];
 
@@ -195,6 +196,18 @@ test('touch: tapping helpModeBtn activates help mode',()=>{
   helpBtn._dispatch('click',{});
   assert.ok(helpBtn.classList.contains('active'),'helpModeBtn should be active');
   assert.equal(helpBtn.getAttribute('aria-pressed'),'true');
+});
+
+test('touch: tapping helpModeBtn again deactivates help mode',()=>{
+  const env=buildEnv(false);
+  runSetupHelp(env);
+  const {helpBtn}=env;
+
+  helpBtn._dispatch('click',{});
+  assert.ok(helpBtn.classList.contains('active'),'should be active');
+  helpBtn._dispatch('click',{});
+  assert.ok(!helpBtn.classList.contains('active'),'should be inactive after second tap');
+  assert.equal(helpBtn.getAttribute('aria-pressed'),'false');
 });
 
 test('touch: in help mode, tapping a [data-help] control shows tooltip and prevents default',()=>{

@@ -1727,6 +1727,7 @@
       const setHelpMode=on=>{helpMode=on;helpBtn?.classList.toggle('active',on);helpBtn?.setAttribute('aria-pressed',String(on));if(!on)hide();};
       helpBtn?.addEventListener('click',()=>setHelpMode(!helpMode));
       document.addEventListener('click',e=>{
+        if(e.target===helpBtn)return;
         if(!helpMode)return;
         const el=e.target.closest('[data-help]');
         if(el&&el!==helpBtn){e.preventDefault();e.stopImmediatePropagation();const r=el.getBoundingClientRect();show(el,r.left+r.width/2,r.bottom+8);return;}
