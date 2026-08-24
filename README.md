@@ -1,39 +1,46 @@
-# ChordBloom
+# ChordBloom Pro v1.4 — MPE Expression
 
-ChordBloom is a browser-first harmony and MIDI composition tool. Its core engine runs locally with no API dependency.
+ChordBloom is a browser-first harmony and MIDI composition tool. The whole app is one
+dependency-free static file: `src/index.html`. The music engine runs locally — no API calls.
 
-## Architecture
+## Features
 
-- `src/engine/music-data.js` — scales, styles, moods, grids
-- `src/engine/theory.js` — scale/chord construction and chromatic theory candidates
-- `src/engine/harmony.js` — contextual progression candidate generation and scoring
-- `src/engine/voicing.js` — inversion/register/voice-leading candidate scoring
-- `src/engine/rhythm.js` — chord, rhythm, arp, broken-chord, strum and pulse event generation
-- `src/engine/midi.js` — dependency-free Standard MIDI File writer
-- `src/engine/analyzer.js` — progression-level explanation
-- `src/app.js` — browser state, UI, WebAudio, persistence
-- `tests/core.test.js` — engine invariants and MIDI tests
+- Seeded, deterministic progression engine: 20 scales/modes, 21 styles, 13 moods,
+  14 chromatic techniques (secondary dominants & ii–V, tritone sub, backdoor, modal
+  interchange, Neapolitan, augmented sixths, chromatic mediants, diminished approach,
+  quartal, upper structures, line clichés), 17 cadence types, 7 tension curves.
+- Voice-leading–scored voicings: close/open/drop-2/drop-3/drop-2&4/quartal/spread,
+  registers, pedal tones, bass/top-voice shaping, per-chord lock / audition / alternative.
+- Rhythm engine: chords, rhythmic chords, arpeggio (incl. polymetric "Crazy Arp"),
+  broken chords, strum, pulse; Euclidean and style patterns; swing; Natural Play gating.
+- **MPE**: theory-aware per-note pitch bend, CC74 timbre and channel pressure
+  (common tones held stable, tendency tones lean into resolution). MIDI export writes an
+  MPE zone (manager ch 1, members 2–16, RPN 6) at PPQ 960; the browser preview simulates
+  MPE with WebAudio.
+- Simple/Expert UI with contextual help on every control; undo/redo; local favorites;
+  robust MIDI export (file picker → iOS share sheet → download fallback).
 
 ## Run
 
-Requires Node 20+ only for tests/build. The app itself is static.
+The app is static — open `src/index.html` directly, or:
 
 ```bash
-npm test
-npm run build
-npm start
+npm test        # headless engine tests (Node 20+, no dependencies)
+npm run build   # copies src/ → dist/
+npm start       # serves dist/ at http://localhost:4173
 ```
 
-Then open `http://localhost:4173`.
+Append `?selftest=1` to the URL to run the in-browser self-test suite
+(results in the console and `window.__CHORDBLOOM_TESTS__`).
 
-## Static deployment
+## Testing
 
-Deploy the generated `dist/` directory to Vercel, Netlify, GitHub Pages or Cloudflare Pages. No server runtime is required.
+`tests/` evaluates the app's inline script in `node:vm` (no DOM, no browser) and tests
+the engine through its `__ChordBloomCore` export: MIDI file validity, MPE RPN
+configuration and channel allocation, expression curves, determinism, grid math,
+and audio-context activation.
 
-## Implemented theory techniques
+## Deployment
 
-Diatonic triads/sevenths/ninths, functional labels, modal interchange iv, secondary dominants, tritone substitution, backdoor dominant, diminished passing harmony, Neapolitan harmony, tension-driven candidate scoring, cadence bias, loop scoring, inversions, spread voicings, common-tone/minimum-motion voice leading.
-
-## Current scope
-
-This production-ready v1 implements the full end-to-end composition path and the most important interaction model. Some items from the maximal product specification are intentionally extension points rather than pretended-complete features: augmented-sixth families, generalized secondary ii–V detection, upper structures/polychords, full quartal voicing palette, editable tension-curve points, dedicated bassline generation, direct browser-to-DAW drag, and audio sample instruments. The architecture isolates these additions in the engine rather than the UI.
+Pushes to `main` run tests and deploy `dist/` to GitHub Pages
+(`.github/workflows/pages.yml`). Any static host works.
