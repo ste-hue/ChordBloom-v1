@@ -243,6 +243,7 @@ test('touch: tapping outside closes tooltip and exits help mode',()=>{
   const outsideEv={target:outside,preventDefault(){},stopImmediatePropagation(){}};
   docEl._dispatch('click',outsideEv,true);
   assert.ok(!tip.classList.contains('visible'),'tooltip should close after tap outside');
+  assert.ok(!helpBtn.classList.contains('active'),'help mode should be deactivated after tap outside');
 });
 
 test('touch: tab change clears tooltip',()=>{
