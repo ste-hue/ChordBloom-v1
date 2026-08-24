@@ -8,15 +8,14 @@
     {
       "binding": "DB",
       "database_name": "chordbloom-credits",
-      // database_id is filled in by the deploy task after `wrangler d1 create`
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "2f48b43e-1ec4-4cb4-b450-3c5269ed807b",
       "migrations_dir": "migrations"
     }
   ],
   "vars": {
     "ALLOWED_ORIGINS": "https://chordbloom.app,https://www.chordbloom.app,https://ste-hue.github.io,http://localhost:4173",
-    // Real values set in the deploy task from the user's LS dashboard:
-    "LS_STORE_ID": "0",
-    "PRODUCT_CREDITS": "{}"
+    "LS_STORE_ID": "459198",
+    // product 1313055 = "ChordBloom 100 Export Credits" (€9.99, test-mode); add the live-mode product id here after store activation
+    "PRODUCT_CREDITS": "{\"1313055\": 100}"
   }
 }
