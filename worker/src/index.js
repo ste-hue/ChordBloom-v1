@@ -62,6 +62,64 @@ export async function creditWallet(env, walletId, credits, externalId) {
   }
 }
 
+function hexToBytes(hex) {
+  if (!/^[0-9a-f]+$/i.test(hex) || hex.length % 2) return null;
+  const out = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  return out;
+}
+
+async function verifySignature(rawBody, signatureHex, secret) {
+  if (!signatureHex || !secret) return false;
+  const sigBytes = hexToBytes(signatureHex);
+  if (!sigBytes || sigBytes.length !== 32) return false;
+  const key = await crypto.subtle.importKey(
+    'raw', new TextEncoder().encode(secret), {name: 'HMAC', hash: 'SHA-256'}, false, ['sign']);
+  const digest = new Uint8Array(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(rawBody)));
+  return crypto.subtle.timingSafeEqual(digest, sigBytes);
+}
+
+function productCredits(env, productId) {
+  try {
+    const map = JSON.parse(env.PRODUCT_CREDITS || '{}');
+    const n = map[String(productId)];
+    return Number.isInteger(n) && n > 0 ? n : null;
+  } catch { return null; }
+}
+
+async function handleWebhook(request, env) {
+  const rawBody = await request.text();
+  const ok = await verifySignature(rawBody, request.headers.get('X-Signature'), env.LS_WEBHOOK_SECRET);
+  if (!ok) return json(401, {error: 'bad_signature'}, {});
+  let payload;
+  try { payload = JSON.parse(rawBody); } catch { return json(400, {error: 'bad_json'}, {}); }
+
+  const event = payload && payload.meta && payload.meta.event_name;
+  const custom = (payload && payload.meta && payload.meta.custom_data) || {};
+  const attrs = (payload && payload.data && payload.data.attributes) || {};
+
+  if (event === 'license_key_created' && !custom.wallet_id) {
+    const credits = productCredits(env, attrs.product_id);
+    if (!credits || typeof attrs.key !== 'string' || !attrs.key) return json(200, {ignored: true}, {});
+    const wallet = await findOrCreateWallet(env, await hashKey(attrs.key));
+    const result = await creditWallet(env, wallet.id, credits, `order-${attrs.order_id}`);
+    return json(200, result, {});
+  }
+
+  if (event === 'order_created' && custom.wallet_id) {
+    const item = attrs.first_order_item || {};
+    const credits = productCredits(env, item.product_id);
+    if (!credits) return json(200, {ignored: true}, {});
+    const wallet = await env.DB.prepare('SELECT id FROM wallets WHERE id = ?').bind(custom.wallet_id).first();
+    if (!wallet) return json(200, {ignored: true, unknown_wallet: true}, {});
+    const orderId = payload.data.id || attrs.identifier;
+    const result = await creditWallet(env, wallet.id, credits, `order-${orderId}`);
+    return json(200, result, {});
+  }
+
+  return json(200, {ignored: true}, {});
+}
+
 async function handleActivate(request, env, cors) {
   let body;
   try { body = await request.json(); } catch { return json(400, {error: 'bad_json'}, cors); }
@@ -131,6 +189,7 @@ export default {
       }
       if (url.pathname === '/wallet/activate' && request.method === 'POST') return handleActivate(request, env, cors);
       if (url.pathname === '/wallet/spend' && request.method === 'POST') return handleSpend(request, env, cors);
+      if (url.pathname === '/webhooks/ls' && request.method === 'POST') return handleWebhook(request, env);
       return json(404, {error: 'not_found'}, cors);
     } catch (err) {
       console.log(JSON.stringify({level: 'error', path: url.pathname, message: String(err)}));
