@@ -962,15 +962,17 @@ button.primary.pending,.mab-btn.mab-primary.pending{background:var(--warn);color
     if(state.locks.some(Boolean)) return {label:'RECOMPOSE UNLOCKED',pending:false,diff:[]};
     return {label:'NEW IDEA',pending:false,diff:[]};
   }
+  const MAB_COMPOSE_LABELS={'APPLY CHANGES':'APPLY','CREATE PROGRESSION':'CREATE','RECOMPOSE UNLOCKED':'RECOMPOSE'};
   function updateComposeAction(){
     const cs=composeState();
-    ['generateBtn','mabGenerateBtn'].forEach(id=>{ const b=$(id); if(!b)return; b.textContent=id==='mabGenerateBtn'&&cs.label==='APPLY CHANGES'?'APPLY':id==='mabGenerateBtn'&&cs.label==='CREATE PROGRESSION'?'CREATE':id==='mabGenerateBtn'&&cs.label==='RECOMPOSE UNLOCKED'?'RECOMPOSE':cs.label; b.classList.toggle('pending',cs.pending); });
-    const banner=$('pendingDirection'); if(!banner)return;
+    ['generateBtn','mabGenerateBtn'].forEach(id=>{ const b=$(id); if(!b)return; b.textContent=id==='mabGenerateBtn'?(MAB_COMPOSE_LABELS[cs.label]||cs.label):cs.label; b.classList.toggle('pending',cs.pending); });
+    const banner=$('pendingDirection'); if(!banner)return cs;
     if(cs.pending){ banner.hidden=false; banner.textContent=''; const head=document.createElement('b'); head.textContent=cs.diff.length===1?'Direction changed':`${cs.diff.length} direction changes pending`; banner.appendChild(head); cs.diff.forEach(t=>{ const span=document.createElement('span'); span.textContent=t; banner.appendChild(span); }); }
     else { banner.hidden=true; banner.textContent=''; }
+    return cs;
   }
   function composeAction(){ const cs=composeState(); if(cs.pending){ pushHistory(); generate('apply'); } else generate('new'); }
-  function markDirectionChanged(){ updateComposeAction(); if(composeState().pending)setStatus('Direction changed — press APPLY CHANGES to hear it.'); }
+  function markDirectionChanged(){ const cs=updateComposeAction(); if(cs.pending)setStatus('Direction changed — press APPLY CHANGES to hear it.'); }
 
   function generate(mode='new') {
     const s=settings(); if(mode==='new'){ pushHistory(); $('seed').value=Math.floor((Date.now()*13 + Math.random()*1e8)%999999999)+1; }
