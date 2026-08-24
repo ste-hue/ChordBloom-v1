@@ -1728,11 +1728,12 @@
     document.addEventListener('mousemove',e=>{if(hoverCapable&&tip.classList.contains('visible'))place(e.clientX+14,e.clientY+14);});
     document.addEventListener('mouseout',e=>{if(hoverCapable&&e.target.closest('[data-help]'))hide();});
     document.addEventListener('focusin',e=>{if(!shouldShowHelp({hoverCapable,helpMode,trigger:'focus'}))return;const el=e.target.closest('[data-help]');if(el)showNear(el);});
-    document.addEventListener('focusout',()=>{if(hoverCapable)hide();});
+    document.addEventListener('focusout',hide);
     const btn=$('helpModeBtn');
     if(hoverCapable){btn?.remove();return;}
     if(btn){btn.hidden=false;btn.onclick=()=>{helpMode=!helpMode;btn.classList.toggle('active',helpMode);btn.setAttribute('aria-pressed',String(helpMode));document.body.classList.toggle('help-mode',helpMode);hide();};}
     const intercept=e=>{if(!shouldShowHelp({hoverCapable,helpMode,trigger:'tap'}))return;if(e.target.closest('#helpModeBtn'))return;const el=e.target.closest('[data-help]');if(!el){if(e.type==='pointerdown')hide();return;}e.preventDefault();e.stopPropagation();if(e.type==='pointerdown')showNear(el);};
+    // click is intercepted too as a backstop: some touch browsers still synthesize a click even when pointerdown was prevented, and in Help Mode a tap on a help-annotated control must never trigger its action.
     document.addEventListener('pointerdown',intercept,true);
     document.addEventListener('click',intercept,true);
     document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',hide));
