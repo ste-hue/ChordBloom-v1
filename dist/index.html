@@ -1416,7 +1416,11 @@
   let sharedAudioCtx=null;
   async function activateAudioContext(context){
     if(context.state==='closed')throw new Error('Audio output is closed. Reload the page to play sound again.');
-    if(context.state==='suspended'&&typeof context.resume==='function')await context.resume();
+    if((context.state==='suspended'||context.state==='interrupted')&&typeof context.resume==='function'){
+      await context.resume();
+      if(context.state!=='running'){if(typeof globalThis.setTimeout==='function')await new Promise(r=>setTimeout(r,40));try{await context.resume();}catch{}}
+    }
+    if(context.state!=='running'&&context.state!=='closed')throw new Error('Audio is paused by the browser/device. Press PLAY again.');
     return context;
   }
   function audioContext(){
@@ -1433,7 +1437,7 @@
   }
 
   function scheduleTone(ctx,master,n,start,dur,vel=.7) {
-    const osc=ctx.createOscillator(), gain=ctx.createGain(); osc.type='triangle'; osc.frequency.value=440*Math.pow(2,(n-69)/12); gain.gain.setValueAtTime(0,start); gain.gain.linearRampToValueAtTime(.26*vel,start+.012); gain.gain.setValueAtTime(.22*vel,Math.max(start+.02,start+dur-.05)); gain.gain.linearRampToValueAtTime(0,start+dur); osc.connect(gain); gain.connect(master); osc.start(start);osc.stop(start+dur+.02);
+    const freq=440*Math.pow(2,(n-69)/12), osc=ctx.createOscillator(), sub=ctx.createOscillator(), gain=ctx.createGain(), filter=ctx.createBiquadFilter(); osc.type='triangle';sub.type='sine';osc.frequency.value=freq;sub.frequency.value=freq*.5;filter.type='lowpass';filter.Q.value=.45;filter.frequency.setValueAtTime(2200+vel*1800,start);gain.gain.setValueAtTime(0,start); gain.gain.linearRampToValueAtTime(.25*vel,start+.012); gain.gain.setValueAtTime(.21*vel,Math.max(start+.02,start+dur-.05)); gain.gain.linearRampToValueAtTime(0,start+dur); osc.connect(filter);sub.connect(filter);filter.connect(gain);gain.connect(master); let cleaned=false; const cleanup=()=>{if(cleaned)return;cleaned=true;try{osc.disconnect();sub.disconnect();filter.disconnect();gain.disconnect();}catch{}}; osc.onended=cleanup;sub.onended=cleanup; try{osc.start(start);sub.start(start);osc.stop(start+dur+.02);sub.stop(start+dur+.02);}catch{try{osc.stop();}catch{}try{sub.stop();}catch{}cleanup();}
   }
 
   function scheduleExpressiveTone(ctx,master,e,start,dur,vel,s,secPerTick) {
