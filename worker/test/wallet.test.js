@@ -149,4 +149,17 @@ describe('POST /wallet/spend', () => {
     }));
     expect(res.status).toBe(429);
   });
+
+  it("rejects another wallet's idempotency key with 409 and no debit", async () => {
+    await seedWallet('KEY-X1', 5);
+    const id2 = await seedWallet('KEY-X2', 5);
+    const spend = (key) => call(req('/wallet/spend', {
+      method: 'POST', key, body: {reason: 'midi_export', idempotency_key: 'shared-idem'}
+    }));
+    expect((await spend('KEY-X1')).status).toBe(200);
+    const res = await spend('KEY-X2');
+    expect(res.status).toBe(409);
+    const w2 = await env.DB.prepare('SELECT balance FROM wallets WHERE id = ?').bind(id2).first();
+    expect(w2.balance).toBe(5);
+  });
 });

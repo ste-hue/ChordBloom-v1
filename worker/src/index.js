@@ -106,6 +106,8 @@ async function handleSpend(request, env, cors) {
   } catch (err) {
     const msg = String(err);
     if (msg.includes('UNIQUE')) {
+      const prior = await env.DB.prepare('SELECT wallet_id FROM transactions WHERE idempotency_key = ?').bind(idem).first();
+      if (!prior || prior.wallet_id !== wallet.id) return json(409, {error: 'idempotency_conflict'}, cors);
       const fresh = await env.DB.prepare('SELECT balance FROM wallets WHERE id = ?').bind(wallet.id).first();
       return json(200, {wallet_id: wallet.id, balance: fresh.balance, replayed: true}, cors);
     }
