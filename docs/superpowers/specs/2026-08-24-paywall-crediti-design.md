@@ -131,9 +131,10 @@ twice for one download. A new key is minted only after a completed save.
 
 ## Security & config
 
-- Secrets (LS API key, webhook secret) via `wrangler secret` — never in the
-  repo. Server stores only hashed license keys. No PII in D1 (email stays at
-  LS). Basic per-key rate limiting on `spend`/`activate`.
+- Single secret (LS webhook signing secret) via `wrangler secret` — never in
+  the repo; license activation uses LS's public License API (see Verified
+  behavior §3). Server stores only hashed license keys. No PII in D1 (email
+  stays at LS). Basic per-key rate limiting on `spend`/`activate`.
 
 ## Testing
 
@@ -150,6 +151,38 @@ twice for one download. A new key is minted only after a completed save.
 Free/trial credits, refund handling beyond LS's own flow (a `refund` ledger
 type is a natural later addition), user accounts, subscriptions, moving MIDI
 generation server-side, multi-currency pack logic (LS handles pricing).
+
+## Verified Lemon Squeezy behavior (checked 2026-08-24 against LS docs)
+
+1. **Custom data**: passed via `checkout[custom][...]` URL params (or
+   `checkout_data.custom` via API); appears as `meta.custom_data` in Order,
+   Subscription and License-key webhook events. → Top-up checkout links carry
+   `checkout[custom][wallet_id]`.
+2. **License keys are per-order**: every purchase of a license-enabled
+   product generates a NEW key. Custom data cannot attach a purchase to an
+   existing key. → The Worker maps repeat purchases to the existing
+   `wallet_id` from `meta.custom_data` and ignores the newly minted key,
+   exactly as the binding constraint required.
+3. **License API is public**: `POST /v1/licenses/{activate|validate|deactivate}`
+   on `api.lemonsqueezy.com`, authenticated by the license key itself — no
+   store API key, no Authorization header. → The Worker needs only ONE
+   secret: the webhook signing secret. (Spec's earlier "LS API key" secret is
+   dropped.)
+4. **Webhook signing**: `X-Signature` header, HMAC-SHA256 hex digest of the
+   raw request body with the signing secret; verify with a timing-safe
+   compare before parsing.
+5. **Crediting flow**: first purchase (no `wallet_id` in custom data) →
+   handle `license_key_created`, create wallet from the key hash, credit.
+   Top-up (`wallet_id` present) → handle `order_created`, credit that wallet.
+   `external_id` = LS order id with a UNIQUE constraint guarantees a single
+   credit per order even if both events fire or deliveries retry.
+   (Exact event names to be confirmed live in LS test mode during setup.)
+
+Sources: [Passing custom data](https://docs.lemonsqueezy.com/help/checkout/passing-custom-data),
+[License API](https://docs.lemonsqueezy.com/api/license-api),
+[Signing requests](https://docs.lemonsqueezy.com/help/webhooks/signing-requests),
+[Generating license keys](https://docs.lemonsqueezy.com/help/licensing/generating-license-keys),
+[Event types](https://docs.lemonsqueezy.com/help/webhooks/event-types).
 
 ## Deploy
 
