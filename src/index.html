@@ -960,22 +960,6 @@ button.primary:disabled,.mab-btn.mab-primary:disabled{background:#242b37;color:v
   }
   function composeState(){
     if(!state.progression.length) return {label:'CREATE PROGRESSION',pending:false,disabled:false,diff:[]};
-<<<<<<< HEAD
-    const visible=state.progression.length, lockedCount=state.locks.slice(0,visible).filter(Boolean).length, allLocked=lockedCount===visible;
-    const diff=directionDiff();
-    if(diff.length){
-      if(allLocked && (Number($('count')?.value)||visible)<=visible) return {label:'UNLOCK A CHORD',pending:true,disabled:true,diff};
-      return {label:'APPLY CHANGES',pending:true,disabled:false,diff};
-    }
-    if(allLocked) return {label:'ALL CHORDS LOCKED',pending:false,disabled:true,diff:[]};
-    if(lockedCount>0) return {label:'RECOMPOSE UNLOCKED',pending:false,disabled:false,diff:[]};
-    return {label:'NEW IDEA',pending:false,disabled:false,diff:[]};
-  }
-  const MAB_COMPOSE_LABELS={'APPLY CHANGES':'APPLY','CREATE PROGRESSION':'CREATE','RECOMPOSE UNLOCKED':'RECOMPOSE','ALL CHORDS LOCKED':'LOCKED','UNLOCK A CHORD':'UNLOCK'};
-  function updateComposeAction(){
-    const cs=composeState();
-    ['generateBtn','mabGenerateBtn'].forEach(id=>{ const b=$(id); if(!b)return; b.textContent=id==='mabGenerateBtn'?(MAB_COMPOSE_LABELS[cs.label]||cs.label):cs.label; b.classList.toggle('pending',cs.pending); b.disabled=!!cs.disabled; b.setAttribute('aria-disabled',cs.disabled?'true':'false'); });
-=======
     const diff=directionDiff();
     // Generating with s.count preserves every locked chord that already exists, so an
     // increased pending count deliberately re-opens positions beyond the current progression.
@@ -991,30 +975,24 @@ button.primary:disabled,.mab-btn.mab-primary:disabled{background:#242b37;color:v
   function updateComposeAction(){
     const cs=composeState();
     ['generateBtn','mabGenerateBtn'].forEach(id=>{ const b=$(id); if(!b)return; b.textContent=id==='mabGenerateBtn'?(MAB_COMPOSE_LABELS[cs.label]||cs.label):cs.label; b.classList.toggle('pending',cs.pending&&!cs.disabled); b.disabled=cs.disabled; b.setAttribute('aria-disabled',String(cs.disabled)); });
->>>>>>> origin/copilot/rebuild-ui-around-progression-object
     const banner=$('pendingDirection'); if(!banner)return cs;
     if(cs.pending||cs.disabled){ banner.hidden=false; banner.textContent=''; const head=document.createElement('b'); const pendingText=cs.diff.length===1?'Direction changed':`${cs.diff.length} direction changes pending`; head.textContent=cs.disabled?(cs.pending?`All chords locked — ${pendingText.toLowerCase()}`:'All chords locked'):pendingText; banner.appendChild(head); cs.diff.forEach(t=>{ const span=document.createElement('span'); span.textContent=t; banner.appendChild(span); }); if(cs.disabled){ const hint=document.createElement('span'); hint.textContent='Unlock at least one chord to compose.'; banner.appendChild(hint); } }
     else { banner.hidden=true; banner.textContent=''; }
     return cs;
   }
-<<<<<<< HEAD
-  function composeAction(){ const cs=composeState(); if(cs.disabled){ setStatus('All chords are locked — unlock at least one chord, then press APPLY CHANGES.'); return; } if(cs.pending){ pushHistory(); generate('apply'); } else generate('new'); }
-  function markDirectionChanged(){ const cs=updateComposeAction(); if(cs.pending) setStatus(cs.disabled?'All chords are locked — unlock at least one chord, then press APPLY CHANGES.':'Direction changed — press APPLY CHANGES to hear it.'); else if($('status').textContent.includes('APPLY CHANGES')) setStatus('Direction changes reverted.'); }
-=======
   let directionStatusShown=false;
   function composeAction(){ const cs=updateComposeAction(); if(cs.disabled){ setStatus(cs.pending?'Direction changed — unlock at least one chord to apply it.':'All chords are locked — unlock at least one chord to compose.'); return; } if(cs.pending){ pushHistory(); generate('apply'); } else generate('new'); }
   function markDirectionChanged(){ const cs=updateComposeAction(); if(cs.pending&&cs.disabled){ setStatus('Direction changed — unlock at least one chord to apply it.'); directionStatusShown=true; } else if(cs.pending){ setStatus('Direction changed — press APPLY CHANGES to hear it.'); directionStatusShown=true; } else if(directionStatusShown){ setStatus('Direction changes reverted.'); directionStatusShown=false; } }
->>>>>>> origin/copilot/rebuild-ui-around-progression-object
 
   function generate(mode='new') {
     const s=settings(); if(mode==='new'){ pushHistory(); $('seed').value=Math.floor((Date.now()*13 + Math.random()*1e8)%999999999)+1; }
     s.seed=Number($('seed').value)||1;
     const rng=mulberry32(hashSeed(s.seed + (mode==='similar'?7919:state.generationIndex++)));
     const degrees=baseDegrees(s,rng); const old=deep(state.progression); const result=[];
-    let prevNotes=null;
+    let prevNotes=null; let anyFree=false;
     for(let i=0;i<s.count;i++){
       if(state.locks[i] && old[i]) { const locked=deep(old[i]); result[i]=locked; prevNotes=locked.notes; continue; }
-      let chord;
+      anyFree=true; let chord;
       if(mode==='similar' && old[i] && rng()<.68){
         chord=deep(old[i]); chord.preserveExact=false;
         if(rng()<.55){ const ex=addExtensions(qualityIntervals(chord.quality==='dominant'?'dominant':chord.quality),chord.quality,s,rng,chord.quality==='dominant'?'dominant':''); chord.intervals=ex.intervals; chord.pcs=uniq(ex.intervals.map(x=>mod(chord.root+x))); }
@@ -1032,7 +1010,7 @@ button.primary:disabled,.mab-btn.mab-primary:disabled{background:#242b37;color:v
       const last=result.at(-1), first=result[0]; const alt=voiceChord(deep(last),first.notes,s,result.length-1,rng);
       if(voiceScore(alt.notes,first.notes,alt,s,result.length-1)<voiceScore(last.notes,first.notes,last,s,result.length-1)) result[result.length-1]=alt;
     }
-    state.progression=result; state.appliedDirection=captureDirection(); directionStatusShown=false; refreshAll(true); setStatus(`${s.style} · ${s.key} ${s.scale} · seed ${s.seed}`);
+    state.progression=result; if(anyFree) state.appliedDirection=captureDirection(); directionStatusShown=false; refreshAll(true); setStatus(`${s.style} · ${s.key} ${s.scale} · seed ${s.seed}`);
   }
 
   function alternative(index) {
