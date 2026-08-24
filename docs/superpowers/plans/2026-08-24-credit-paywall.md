@@ -20,7 +20,7 @@
 - License key travels ONLY in the `X-License-Key` header (never URLs). Server stores only SHA-256 hex of keys. One Worker secret: `LS_WEBHOOK_SECRET`.
 - Verified LS behavior (spec §Verified): every purchase mints a NEW license key; checkout custom data (`checkout[custom][...]`) arrives as `meta.custom_data` in order AND license-key webhook events; License API (`/v1/licenses/validate`) is public (key is the credential); webhooks signed with HMAC-SHA256 hex in `X-Signature` over the raw body.
 - Commits end with: `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>`. Never `git push` (deploys are user-gated).
-- Package-name note: if `@cloudflare/vitest-plugin` subpath imports differ from `@cloudflare/vitest-plugin/config`, use the config subpath named in that package's own README (rename shipped 2026-08-19; API unchanged). This is the ONLY sanctioned deviation, and it must be reported.
+- Vitest integration: `@cloudflare/vitest-plugin@^1.0.0` — v1 API: `cloudflareTest` plugin + `readD1Migrations` imported from the package root, inside vitest 4's `defineConfig`; peer dep `vitest ^4.1.0`. Test files import `env`/`createExecutionContext`/`waitOnExecutionContext`/`fetchMock`/`applyD1Migrations` from `cloudflare:test` as written. Sanctioned deviation: if a `cloudflare:test` import name differs under v1, use the name the installed package's README shows and report it.
 
 ---
 
@@ -92,7 +92,7 @@ describe('schema', () => {
   },
   "devDependencies": {
     "@cloudflare/vitest-plugin": "^1.0.0",
-    "vitest": "~3.2.0",
+    "vitest": "~4.1.0",
     "wrangler": "^4.0.0"
   }
 }
@@ -148,31 +148,30 @@ CREATE TABLE transactions (
 CREATE INDEX idx_transactions_wallet_created ON transactions (wallet_id, created_at);
 ```
 
-`worker/vitest.config.js`:
+`worker/vitest.config.js` (v1 plugin API, verified against the current Workers vitest-integration docs):
 
 ```js
-import {defineWorkersConfig, readD1Migrations} from '@cloudflare/vitest-plugin/config';
+import path from 'node:path';
+import {cloudflareTest, readD1Migrations} from '@cloudflare/vitest-plugin';
+import {defineConfig} from 'vitest/config';
 
-export default defineWorkersConfig(async () => {
-  const migrations = await readD1Migrations('./migrations');
-  return {
-    test: {
-      setupFiles: ['./test/apply-migrations.js'],
-      poolOptions: {
-        workers: {
-          singleWorker: true,
-          wrangler: {configPath: './wrangler.jsonc'},
-          // Test-only binding values; production vars/secrets stay placeholders in wrangler.jsonc.
-          miniflare: {bindings: {
-            TEST_MIGRATIONS: migrations,
-            LS_WEBHOOK_SECRET: 'test-secret',
-            LS_STORE_ID: '4242',
-            PRODUCT_CREDITS: '{"111": 100}'
-          }}
-        }
-      }
-    }
-  };
+export default defineConfig({
+  plugins: [
+    cloudflareTest(async () => {
+      const migrations = await readD1Migrations(path.join(import.meta.dirname, 'migrations'));
+      return {
+        wrangler: {configPath: './wrangler.jsonc'},
+        // Test-only binding values; production vars/secrets stay placeholders in wrangler.jsonc.
+        miniflare: {bindings: {
+          TEST_MIGRATIONS: migrations,
+          LS_WEBHOOK_SECRET: 'test-secret',
+          LS_STORE_ID: '4242',
+          PRODUCT_CREDITS: '{"111": 100}'
+        }}
+      };
+    })
+  ],
+  test: {setupFiles: ['./test/apply-migrations.js']}
 });
 ```
 
