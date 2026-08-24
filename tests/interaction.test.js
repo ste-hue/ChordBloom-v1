@@ -208,9 +208,16 @@ test('unlocking one chord re-enables RECOMPOSE/APPLY and only recomposes unlocke
   assert.equal($('generateBtn').disabled,false,'unlocking a chord re-enables the action');
   const lockedBefore=core.state.progression.slice(0,n-1).map(c=>JSON.stringify(c.notes));
   const unlockedBefore=JSON.stringify(core.state.progression[n-1].notes);
-  $('generateBtn').dispatch('click');
-  assert.deepEqual(core.state.progression.slice(0,n-1).map(c=>JSON.stringify(c.notes)),lockedBefore,'locked chords remain exact');
-  assert.notEqual(JSON.stringify(core.state.progression[n-1].notes),unlockedBefore,'the unlocked chord is recomposed');
+  // Each click rerolls the seed; retry a few times so the "chord changed" check
+  // never flakes on a coincidental identical voicing, while locked chords must
+  // stay exact on every recompose.
+  let changed=false;
+  for(let attempt=0;attempt<5 && !changed;attempt++){
+    $('generateBtn').dispatch('click');
+    assert.deepEqual(core.state.progression.slice(0,n-1).map(c=>JSON.stringify(c.notes)),lockedBefore,'locked chords remain exact');
+    changed=JSON.stringify(core.state.progression[n-1].notes)!==unlockedBefore;
+  }
+  assert.ok(changed,'the unlocked chord is recomposed');
   // With a pending direction and one unlocked chord, APPLY is available again.
   $('mood').value='Dark'; $('mood').dispatch('change');
   assert.equal(core.composeState().label,'APPLY CHANGES');

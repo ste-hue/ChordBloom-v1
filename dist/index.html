@@ -962,7 +962,7 @@ button.primary.pending,.mab-btn.mab-primary.pending{background:var(--warn);color
     const visible=state.progression.length, lockedCount=state.locks.slice(0,visible).filter(Boolean).length, allLocked=lockedCount===visible;
     const diff=directionDiff();
     if(diff.length){
-      if(allLocked && Number($('count')?.value||0)<=visible) return {label:'UNLOCK A CHORD',pending:true,disabled:true,diff};
+      if(allLocked && (Number($('count')?.value)||visible)<=visible) return {label:'UNLOCK A CHORD',pending:true,disabled:true,diff};
       return {label:'APPLY CHANGES',pending:true,disabled:false,diff};
     }
     if(allLocked) return {label:'ALL CHORDS LOCKED',pending:false,disabled:true,diff:[]};
