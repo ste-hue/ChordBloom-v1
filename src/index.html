@@ -33,6 +33,7 @@
 button.primary.pending,.mab-btn.mab-primary.pending{background:var(--warn);color:#1c1204;border-color:transparent;animation:pendingPulse 2.6s ease-in-out infinite}
 @keyframes pendingPulse{0%,100%{box-shadow:0 0 0 0 rgba(255,195,109,.0)}50%{box-shadow:0 0 0 5px rgba(255,195,109,.22)}}
 @media (prefers-reduced-motion:reduce){button.primary.pending,.mab-btn.mab-primary.pending{animation:none}}
+button.primary:disabled,.mab-btn.mab-primary:disabled{background:#242b37;color:var(--muted);border-color:var(--line);cursor:not-allowed;transform:none;animation:none}
 .pending-direction{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:baseline;margin:0 0 12px;padding:9px 12px;border-radius:11px;border:1px solid rgba(255,195,109,.35);background:rgba(255,195,109,.08);color:var(--warn);font-size:12px}
 .pending-direction b{font-size:11px;text-transform:uppercase;letter-spacing:.08em}
 .pending-direction span{color:#f2dcb8}
@@ -958,23 +959,30 @@ button.primary.pending,.mab-btn.mab-primary.pending{background:var(--warn);color
     return out;
   }
   function composeState(){
-    if(!state.progression.length) return {label:'CREATE PROGRESSION',pending:false,diff:[]};
-    const diff=directionDiff(); if(diff.length) return {label:'APPLY CHANGES',pending:true,diff};
+    if(!state.progression.length) return {label:'CREATE PROGRESSION',pending:false,disabled:false,diff:[]};
+    const diff=directionDiff();
+    // Generating with s.count preserves every locked chord that already exists, so an
+    // increased pending count deliberately re-opens positions beyond the current progression.
+    const nextCount=Number($('count')?.value)||state.progression.length;
+    let hasFree=false; for(let i=0;i<nextCount;i++){ if(!(state.locks[i]&&state.progression[i])){ hasFree=true; break; } }
+    if(!hasFree) return {label:'ALL CHORDS LOCKED',pending:diff.length>0,disabled:true,diff};
+    if(diff.length) return {label:'APPLY CHANGES',pending:true,disabled:false,diff};
     const lockedCount=state.locks.slice(0,state.progression.length).filter(Boolean).length;
-    if(lockedCount>0&&lockedCount<state.progression.length) return {label:'RECOMPOSE UNLOCKED',pending:false,diff:[]};
-    return {label:'NEW IDEA',pending:false,diff:[]};
+    if(lockedCount>0) return {label:'RECOMPOSE UNLOCKED',pending:false,disabled:false,diff:[]};
+    return {label:'NEW IDEA',pending:false,disabled:false,diff:[]};
   }
-  const MAB_COMPOSE_LABELS={'APPLY CHANGES':'APPLY','CREATE PROGRESSION':'CREATE','RECOMPOSE UNLOCKED':'RECOMPOSE'};
+  const MAB_COMPOSE_LABELS={'APPLY CHANGES':'APPLY','CREATE PROGRESSION':'CREATE','RECOMPOSE UNLOCKED':'RECOMPOSE','ALL CHORDS LOCKED':'LOCKED'};
   function updateComposeAction(){
     const cs=composeState();
-    ['generateBtn','mabGenerateBtn'].forEach(id=>{ const b=$(id); if(!b)return; b.textContent=id==='mabGenerateBtn'?(MAB_COMPOSE_LABELS[cs.label]||cs.label):cs.label; b.classList.toggle('pending',cs.pending); });
+    ['generateBtn','mabGenerateBtn'].forEach(id=>{ const b=$(id); if(!b)return; b.textContent=id==='mabGenerateBtn'?(MAB_COMPOSE_LABELS[cs.label]||cs.label):cs.label; b.classList.toggle('pending',cs.pending&&!cs.disabled); b.disabled=cs.disabled; b.setAttribute('aria-disabled',String(cs.disabled)); });
     const banner=$('pendingDirection'); if(!banner)return cs;
-    if(cs.pending){ banner.hidden=false; banner.textContent=''; const head=document.createElement('b'); head.textContent=cs.diff.length===1?'Direction changed':`${cs.diff.length} direction changes pending`; banner.appendChild(head); cs.diff.forEach(t=>{ const span=document.createElement('span'); span.textContent=t; banner.appendChild(span); }); }
+    if(cs.pending||cs.disabled){ banner.hidden=false; banner.textContent=''; const head=document.createElement('b'); head.textContent=cs.disabled?'All chords locked':(cs.diff.length===1?'Direction changed':`${cs.diff.length} direction changes pending`); banner.appendChild(head); cs.diff.forEach(t=>{ const span=document.createElement('span'); span.textContent=t; banner.appendChild(span); }); if(cs.disabled){ const hint=document.createElement('span'); hint.textContent='Unlock at least one chord to compose.'; banner.appendChild(hint); } }
     else { banner.hidden=true; banner.textContent=''; }
     return cs;
   }
-  function composeAction(){ const cs=composeState(); if(cs.pending){ pushHistory(); generate('apply'); } else generate('new'); }
-  function markDirectionChanged(){ const cs=updateComposeAction(); if(cs.pending)setStatus('Direction changed — press APPLY CHANGES to hear it.'); }
+  let directionStatusShown=false;
+  function composeAction(){ const cs=updateComposeAction(); if(cs.disabled){ setStatus('All chords are locked — unlock at least one chord to compose.'); return; } if(cs.pending){ pushHistory(); generate('apply'); } else generate('new'); }
+  function markDirectionChanged(){ const cs=updateComposeAction(); if(cs.pending&&cs.disabled){ setStatus('Direction changed — unlock at least one chord to apply it.'); directionStatusShown=true; } else if(cs.pending){ setStatus('Direction changed — press APPLY CHANGES to hear it.'); directionStatusShown=true; } else if(directionStatusShown){ setStatus('Direction changes reverted.'); directionStatusShown=false; } }
 
   function generate(mode='new') {
     const s=settings(); if(mode==='new'){ pushHistory(); $('seed').value=Math.floor((Date.now()*13 + Math.random()*1e8)%999999999)+1; }
@@ -1002,7 +1010,7 @@ button.primary.pending,.mab-btn.mab-primary.pending{background:var(--warn);color
       const last=result.at(-1), first=result[0]; const alt=voiceChord(deep(last),first.notes,s,result.length-1,rng);
       if(voiceScore(alt.notes,first.notes,alt,s,result.length-1)<voiceScore(last.notes,first.notes,last,s,result.length-1)) result[result.length-1]=alt;
     }
-    state.progression=result; state.appliedDirection=captureDirection(); refreshAll(true); setStatus(`${s.style} · ${s.key} ${s.scale} · seed ${s.seed}`);
+    state.progression=result; state.appliedDirection=captureDirection(); directionStatusShown=false; refreshAll(true); setStatus(`${s.style} · ${s.key} ${s.scale} · seed ${s.seed}`);
   }
 
   function alternative(index) {
