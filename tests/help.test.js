@@ -5,7 +5,7 @@
  * We build a minimal DOM-mock environment and re-run the inline setupHelp
  * logic extracted from src/index.html so we can assert on:
  *
- *  • desktop (hover:hover): mouseover shows tooltip, focusin shows tooltip
+ *  • desktop (hover:hover): NO custom tooltip — the delayed native title is the only description
  *  • touch (no hover):      focusin does NOT show tooltip
  *  • touch + help mode ON:  tap on [data-help] shows tooltip
  *  • tooltip closes on tab change
@@ -136,35 +136,23 @@ function runSetupHelp(env){
 // Tests
 // ---------------------------------------------------------------------------
 
-test('desktop: mouseover on [data-help] element shows tooltip',()=>{
+test('desktop: mouseover does NOT show the custom tooltip (native title only)',()=>{
   const env=buildEnv(true);
   runSetupHelp(env);
   const {tip,ctrlWithHelp,docEl}=env;
 
   assert.ok(!tip.classList.contains('visible'),'tooltip starts hidden');
   docEl._dispatch('mouseover',{target:ctrlWithHelp,clientX:50,clientY:100});
-  assert.ok(tip.classList.contains('visible'),'tooltip visible after mouseover');
-  assert.equal(tip.textContent,'Test help text');
+  assert.ok(!tip.classList.contains('visible'),'no instant custom tooltip on desktop — the delayed native title is the single description');
 });
 
-test('desktop: mouseout hides tooltip',()=>{
-  const env=buildEnv(true);
-  runSetupHelp(env);
-  const {tip,ctrlWithHelp,docEl}=env;
-
-  docEl._dispatch('mouseover',{target:ctrlWithHelp,clientX:50,clientY:100});
-  assert.ok(tip.classList.contains('visible'));
-  docEl._dispatch('mouseout',{target:ctrlWithHelp});
-  assert.ok(!tip.classList.contains('visible'),'tooltip hidden after mouseout');
-});
-
-test('desktop: focusin shows tooltip',()=>{
+test('desktop: focusin does NOT show the custom tooltip',()=>{
   const env=buildEnv(true);
   runSetupHelp(env);
   const {tip,ctrlWithHelp,docEl}=env;
 
   docEl._dispatch('focusin',{target:ctrlWithHelp});
-  assert.ok(tip.classList.contains('visible'),'tooltip visible after focusin');
+  assert.ok(!tip.classList.contains('visible'),'no custom tooltip on focus either — native title covers desktop');
 });
 
 test('touch: focusin does NOT show tooltip',()=>{
