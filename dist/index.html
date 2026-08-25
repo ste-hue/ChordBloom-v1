@@ -1464,8 +1464,8 @@
   }
   async function ensureAudioUnlocked(context){
     await activateAudioContext(context);
-    configureAudioSessionForPlayback(typeof navigator!=='undefined'?navigator:null);
-    startSilentKeepAlive();
+    const sessionConfigured=configureAudioSessionForPlayback(typeof navigator!=='undefined'?navigator:null);
+    if(!sessionConfigured)startSilentKeepAlive();
     if(context._audioUnlocked&&!context._audioNeedsReactivation)return context;
     try{
       const buffer=context.createBuffer(1,1,context.sampleRate||44100), source=context.createBufferSource(); source.buffer=buffer; source.connect(context.destination); source.start(0);
