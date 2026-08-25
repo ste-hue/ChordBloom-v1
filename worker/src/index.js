@@ -127,6 +127,11 @@ async function handleActivate(request, env, cors) {
   const key = body && body.license_key;
   if (typeof key !== 'string' || !key || key.length > 256) return json(400, {error: 'missing_license_key'}, cors);
 
+  // A key whose hash already has a wallet is proven ours: skip LS validation (same trust model as /wallet and /wallet/spend). Also covers family keys minted directly in D1, which LS has never seen.
+  const keyHash = await hashKey(key);
+  const known = await env.DB.prepare('SELECT id, balance FROM wallets WHERE license_key_hash = ?').bind(keyHash).first();
+  if (known) return json(200, {wallet_id: known.id, balance: known.balance}, cors);
+
   const lsRes = await fetch('https://api.lemonsqueezy.com/v1/licenses/validate', {
     method: 'POST',
     headers: {Accept: 'application/json', 'Content-Type': 'application/json'},
@@ -139,7 +144,7 @@ async function handleActivate(request, env, cors) {
   if (!ls.meta || Number(ls.meta.store_id) !== Number(env.LS_STORE_ID)) {
     return json(403, {error: 'wrong_store'}, cors);
   }
-  const wallet = await findOrCreateWallet(env, await hashKey(key));
+  const wallet = await findOrCreateWallet(env, keyHash);
   return json(200, {wallet_id: wallet.id, balance: wallet.balance}, cors);
 }
 

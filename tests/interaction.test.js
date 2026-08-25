@@ -109,7 +109,7 @@ test('favorites restore progression, direction brief and technique state', async
   techEls.find(cb=>cb.dataset.tech==='backdoor').checked=true;
   $('mood').value='Dark'; $('mood').dispatch('change');
   core.composeAction();
-  const fav=JSON.parse(storage.get('chordbloom.favorites'))[0];
+  const fav=JSON.parse(storage.get('chordarium.favorites'))[0];
   core.restoreSnapshot(fav.snapshot);
   assert.equal(core.state.progression.map(c=>c.name).join(' '),savedNames,'favorite restores the exact progression');
   assert.deepEqual({...core.state.appliedDirection},savedApplied,'favorite restores the applied brief');

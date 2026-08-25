@@ -90,9 +90,9 @@ export async function loadApp(){
   };
 
   const context=vm.createContext({console,TextEncoder,crypto,setTimeout,clearTimeout,document,window});
-  vm.runInContext(m[1],context,{filename:'chordbloom-inline-script.js'});
-  const core=context.__ChordBloomCore;
-  if(!core) throw new Error('__ChordBloomCore missing — headless app load failed');
+  vm.runInContext(m[1],context,{filename:'chordarium-inline-script.js'});
+  const core=context.__ChordariumCore;
+  if(!core) throw new Error('__ChordariumCore missing — headless app load failed');
 
   // Register the theory-technique checkboxes (in the browser initControls builds them).
   core.THEORY_TECHNIQUES.forEach(([id])=>{

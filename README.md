@@ -1,6 +1,6 @@
-# ChordBloom Pro v1.4 — MPE Expression
+# Chordarium Pro v1.4 — MPE Expression
 
-ChordBloom is a browser-first harmony and MIDI composition tool. The whole app is one
+Chordarium is a browser-first harmony and MIDI composition tool. The whole app is one
 dependency-free static file: `src/index.html`. The music engine runs locally — no API calls.
 
 ## Features
@@ -31,12 +31,12 @@ npm start       # serves dist/ at http://localhost:4173
 ```
 
 Append `?selftest=1` to the URL to run the in-browser self-test suite
-(results in the console and `window.__CHORDBLOOM_TESTS__`).
+(results in the console and `window.__CHORDARIUM_TESTS__`).
 
 ## Testing
 
 `tests/` evaluates the app's inline script in `node:vm` (no DOM, no browser) and tests
-the engine through its `__ChordBloomCore` export: MIDI file validity, MPE RPN
+the engine through its `__ChordariumCore` export: MIDI file validity, MPE RPN
 configuration and channel allocation, expression curves, determinism, grid math,
 and audio-context activation.
 
