@@ -13,9 +13,9 @@
     }
   ],
   "vars": {
-    "ALLOWED_ORIGINS": "https://chordbloom.app,https://www.chordbloom.app,https://ste-hue.github.io,http://localhost:4173",
+    "ALLOWED_ORIGINS": "https://chordarium.com,https://www.chordarium.com,https://chordbloom.app,https://www.chordbloom.app,https://ste-hue.github.io",
     "LS_STORE_ID": "459198",
-    // product 1313055 = "ChordBloom 100 Export Credits" (€9.99, test-mode); add the live-mode product id here after store activation
-    "PRODUCT_CREDITS": "{\"1313055\": 100}"
+    // 1313055 = test-mode product; 1315315 = live "Chordarium 100 Export Credits" (€9.99) — the ids coexist
+    "PRODUCT_CREDITS": "{\"1313055\": 100, \"1315315\": 100}"
   }
 }

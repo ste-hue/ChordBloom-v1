@@ -6,9 +6,9 @@ export async function loadCore(){
   const m=html.match(/<script>([\s\S]*)<\/script>/);
   if(!m) throw new Error('No inline <script> block found in src/index.html');
   const context=vm.createContext({console,TextEncoder,crypto});
-  vm.runInContext(m[1],context,{filename:'chordbloom-inline-script.js'});
-  if(!context.__ChordBloomCore) throw new Error('__ChordBloomCore missing — headless load failed');
-  const core=context.__ChordBloomCore;
+  vm.runInContext(m[1],context,{filename:'chordarium-inline-script.js'});
+  if(!context.__ChordariumCore) throw new Error('__ChordariumCore missing — headless load failed');
+  const core=context.__ChordariumCore;
   // requestSpend resolves with a plain object literal built inside the vm context, so it
   // carries that context's own Object.prototype. structuredClone rebuilds it against this
   // realm's intrinsics so assert.deepEqual (strict) can compare it to a host object literal.
