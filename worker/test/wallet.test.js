@@ -77,6 +77,16 @@ describe('GET /wallet', () => {
 });
 
 describe('POST /wallet/activate', () => {
+  it('returns the existing wallet without calling LS when the key already has one', async () => {
+    const id = await seedWallet('KEY-KNOWN', 42);
+    vi.stubGlobal('fetch', async () => { throw new Error('LS must not be called for a known key'); });
+    const res = await call(req('/wallet/activate', {method: 'POST', body: {license_key: 'KEY-KNOWN'}}));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.wallet_id).toBe(id);
+    expect(body.balance).toBe(42);
+  });
+
   it('creates a wallet when LS validates the key for our store', async () => {
     mockLemonSqueezy(200, {valid: true, meta: {store_id: 4242}});
     const res = await call(req('/wallet/activate', {method: 'POST', body: {license_key: 'KEY-NEW'}}));
