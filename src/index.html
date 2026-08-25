@@ -1443,8 +1443,29 @@
     if(context.state!=='running'&&context.state!=='closed')throw new Error(`Audio is paused by the browser/device (state: ${context.state}). Press PLAY again.`);
     return context;
   }
+  function configureAudioSessionForPlayback(nav){
+    // iOS mutes Web Audio on the built-in speakers (not headphones) while the silent switch is on
+    // unless the page's audio session is 'playback'. Safari exposes this via navigator.audioSession.
+    const session=nav&&nav.audioSession; if(!session)return false;
+    try{ if(session.type!=='playback')session.type='playback'; return session.type==='playback'; }catch{ return false; }
+  }
+  let silentKeepAliveEl=null;
+  function startSilentKeepAlive(){
+    // Fallback for iOS versions without navigator.audioSession: keeping a silent looping <audio>
+    // element playing switches the audio session to media playback, which ignores the mute switch.
+    if(typeof document==='undefined'||typeof Audio!=='function')return;
+    try{
+      if(!silentKeepAliveEl){
+        silentKeepAliveEl=new Audio('data:audio/wav;base64,UklGRjQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YRAAAAAAAAAAAAAAAAAAAAAAAAAA');
+        silentKeepAliveEl.loop=true; silentKeepAliveEl.setAttribute('playsinline',''); silentKeepAliveEl.preload='auto';
+      }
+      if(silentKeepAliveEl.paused){const p=silentKeepAliveEl.play(); if(p&&typeof p.catch==='function')p.catch(()=>{});}
+    }catch{}
+  }
   async function ensureAudioUnlocked(context){
     await activateAudioContext(context);
+    configureAudioSessionForPlayback(typeof navigator!=='undefined'?navigator:null);
+    startSilentKeepAlive();
     if(context._audioUnlocked&&!context._audioNeedsReactivation)return context;
     try{
       const buffer=context.createBuffer(1,1,context.sampleRate||44100), source=context.createBufferSource(); source.buffer=buffer; source.connect(context.destination); source.start(0);
@@ -1839,7 +1860,7 @@
     window.ChordBloom={generate:()=>generate('new'),moreLikeThis:()=>generate('similar'),downloadMidi,saveMidiFile,prepareMidiDownload,midiBytes,generatePatternEvents,getState:()=>deep(state),settings,runSelfTests};
   }
 
-  globalThis.__ChordBloomCore={PPQ,SCALES,STYLES,MOODS,KEY_PC,baseDegrees,chooseChord,candidateScore,makeCandidates,chordSymbol,diatonicChord,borrowedChord,secondaryDominant,secondaryTwo,tritoneSub,backdoor,diminishedApproach,neapolitan,augmentedSixth,chromaticMediant,quartalChord,upperStructure,voiceChord,gridTicks,harmonicDurations,rhythmMask,arpOrder,crazyArpPlan,crazyCycleLength,safeTensionPcs,closestMidiForPc,gateSteps,naturalChordGate,nearestVoiceTarget,mergeNaturalCommonTones,makeMpeCurve,applyMpeExpression,allocateMpeChannels,pitchBend14,mpeMidiTrackWithSettings,midiBytesFrom,mulberry32,hashSeed,degreeRoot,noteName,activateAudioContext,ensureAudioUnlocked,requestSpend,mintIdempotencyKey};
+  globalThis.__ChordBloomCore={PPQ,SCALES,STYLES,MOODS,KEY_PC,baseDegrees,chooseChord,candidateScore,makeCandidates,chordSymbol,diatonicChord,borrowedChord,secondaryDominant,secondaryTwo,tritoneSub,backdoor,diminishedApproach,neapolitan,augmentedSixth,chromaticMediant,quartalChord,upperStructure,voiceChord,gridTicks,harmonicDurations,rhythmMask,arpOrder,crazyArpPlan,crazyCycleLength,safeTensionPcs,closestMidiForPc,gateSteps,naturalChordGate,nearestVoiceTarget,mergeNaturalCommonTones,makeMpeCurve,applyMpeExpression,allocateMpeChannels,pitchBend14,mpeMidiTrackWithSettings,midiBytesFrom,mulberry32,hashSeed,degreeRoot,noteName,activateAudioContext,ensureAudioUnlocked,configureAudioSessionForPlayback,requestSpend,mintIdempotencyKey};
 
   if(typeof document!=='undefined'){ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init(); }
 })();

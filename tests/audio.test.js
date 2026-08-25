@@ -98,3 +98,27 @@ test('ensureAudioUnlocked rejects a closed context without touching buffers',asy
   await assert.rejects(()=>core.ensureAudioUnlocked(context),/closed/i);
   assert.equal(context.played.length,0);
 });
+
+test('configureAudioSessionForPlayback switches the session to playback',()=>{
+  const session={type:'auto'};
+  assert.equal(core.configureAudioSessionForPlayback({audioSession:session}),true);
+  assert.equal(session.type,'playback');
+});
+
+test('configureAudioSessionForPlayback leaves an already-playback session alone',()=>{
+  let sets=0;
+  const session={get type(){return 'playback';},set type(v){sets++;}};
+  assert.equal(core.configureAudioSessionForPlayback({audioSession:session}),true);
+  assert.equal(sets,0);
+});
+
+test('configureAudioSessionForPlayback is a no-op without navigator.audioSession',()=>{
+  assert.equal(core.configureAudioSessionForPlayback(null),false);
+  assert.equal(core.configureAudioSessionForPlayback({}),false);
+});
+
+test('configureAudioSessionForPlayback swallows setter failures',()=>{
+  const session={get type(){return 'auto';},set type(v){throw new Error('nope');}};
+  assert.equal(core.configureAudioSessionForPlayback({audioSession:session}),false);
+});
+
