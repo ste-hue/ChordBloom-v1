@@ -50,9 +50,9 @@ const CONTROL_DEFAULTS = {
   exportMode:'Pattern (single track)', seed:'1979', showTheory:false
 };
 
-const EXTRA_IDS = ['generateBtn','mabGenerateBtn','similarBtn','newSeedBtn','playBtn','stopBtn','downloadBtn','undoBtn','redoBtn','saveFavBtn','resetBtn','copyTheoryBtn','simpleViewBtn','expertViewBtn','pendingDirection','status','progression','progressionTitle','durationLabel','pianoRoll','theoryExplanation','favorites','mpeInline'];
+const EXTRA_IDS = ['generateBtn','mabGenerateBtn','mabPlayBtn','mabStopBtn','mabDownloadBtn','mabSaveBtn','mabUndoBtn','mabRedoBtn','mabResetBtn','mabMoreBtn','mabMore','mabStatus','similarBtn','newSeedBtn','playBtn','stopBtn','downloadBtn','undoBtn','redoBtn','saveFavBtn','resetBtn','copyTheoryBtn','simpleViewBtn','expertViewBtn','pendingDirection','status','progression','progressionTitle','durationLabel','pianoRoll','theoryExplanation','favorites','mpeInline'];
 
-export async function loadApp(){
+export async function loadApp({storage=new Map()}={}){
   const html=await readFile(new URL('../../src/index.html',import.meta.url),'utf8');
   const m=html.match(/<script>([\s\S]*?)<\/script>/i);
   if(!m) throw new Error('No inline <script> block found in src/index.html');
@@ -77,7 +77,6 @@ export async function loadApp(){
     },
     addEventListener(){}
   };
-  const storage=new Map();
   const window={
     addEventListener(){},
     matchMedia:()=>({matches:false}),
